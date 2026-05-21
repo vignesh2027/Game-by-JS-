@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>BMW Racing — Ultimate Edition</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; }
+#gameCanvas { display: block; image-rendering: pixelated; touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+'use strict';
+
+// ─── BMW CAR DATA ────────────────────────────────────────────────────────────
+const CARS = [
+  // Road Series
+  { id:'bmw1', name:'BMW 1 Series', series:'Road', year:2023, topSpeed:235, acceleration:6.8, handling:7.2, grip:7.0, driftFactor:0.55, mass:1400, terrainBonus:[], spriteColor:'#4A90D9', unlockLevel:0, description:'Nimble entry-level sport hatch' },
+  { id:'bmw3s', name:'BMW 3 Series', series:'Road', year:2023, topSpeed:250, acceleration:7.0, handling:7.5, grip:7.2, driftFactor:0.5, mass:1500, terrainBonus:[], spriteColor:'#FFFFFF', unlockLevel:0, description:'The benchmark sports sedan' },
+  { id:'bmw3t', name:'BMW 3 Series Touring', series:'Road', year:2023, topSpeed:245, acceleration:6.5, handling:7.0, grip:7.0, driftFactor:0.45, mass:1580, terrainBonus:['gravel'], spriteColor:'#C0C0C0', unlockLevel:2, description:'Practical sport wagon with M DNA' },
+  { id:'bmw5', name:'BMW 5 Series', series:'Road', year:2023, topSpeed:260, acceleration:7.2, handling:7.0, grip:7.1, driftFactor:0.45, mass:1700, terrainBonus:[], spriteColor:'#1A1A2E', unlockLevel:3, description:'Executive sport sedan' },
+  { id:'bmw7', name:'BMW 7 Series', series:'Road', year:2023, topSpeed:250, acceleration:6.8, handling:6.5, grip:7.0, driftFactor:0.4, mass:2000, terrainBonus:[], spriteColor:'#0D0D0D', unlockLevel:5, description:'Ultra-luxury performance flagship' },
+  { id:'bmw8gc', name:'BMW 8 Series Gran Coupe', series:'Road', year:2023, topSpeed:290, acceleration:8.0, handling:7.8, grip:7.5, driftFactor:0.5, mass:1800, terrainBonus:[], spriteColor:'#8B0000', unlockLevel:7, description:'Grand touring excellence' },
+  { id:'z4', name:'BMW Z4 Roadster', series:'Road', year:2023, topSpeed:275, acceleration:8.2, handling:8.5, grip:7.8, driftFactor:0.65, mass:1350, terrainBonus:[], spriteColor:'#E63946', unlockLevel:6, description:'Pure roadster experience' },
+  // M Performance
+  { id:'m2c', name:'BMW M2 Competition', series:'M Performance', year:2023, topSpeed:290, acceleration:8.5, handling:9.0, grip:8.5, driftFactor:0.7, mass:1580, terrainBonus:[], spriteColor:'#1C69D4', unlockLevel:4, description:'The driver\'s ultimate M car' },
+  { id:'m3c', name:'BMW M3 Competition', series:'M Performance', year:2023, topSpeed:307, acceleration:9.0, handling:9.0, grip:8.8, driftFactor:0.68, mass:1730, terrainBonus:[], spriteColor:'#FFD700', unlockLevel:6, description:'Legendary sport sedan perfected' },
+  { id:'m4c', name:'BMW M4 Competition', series:'M Performance', year:2023, topSpeed:307, acceleration:9.0, handling:9.2, grip:8.8, driftFactor:0.72, mass:1725, terrainBonus:[], spriteColor:'#E63946', unlockLevel:6, description:'Iconic M coupe at its best' },
+  { id:'m5cs', name:'BMW M5 CS', series:'M Performance', year:2022, topSpeed:305, acceleration:9.5, handling:9.0, grip:9.0, driftFactor:0.65, mass:1825, terrainBonus:[], spriteColor:'#C0C0C0', unlockLevel:9, description:'The most powerful M5 ever' },
+  { id:'m8gc', name:'BMW M8 Gran Coupe', series:'M Performance', year:2023, topSpeed:305, acceleration:9.2, handling:8.8, grip:8.7, driftFactor:0.62, mass:1950, terrainBonus:[], spriteColor:'#1A1A2E', unlockLevel:10, description:'M division\'s grand touring flagship' },
+  { id:'m240i', name:'BMW M240i', series:'M Performance', year:2023, topSpeed:250, acceleration:7.8, handling:8.2, grip:7.8, driftFactor:0.6, mass:1585, terrainBonus:[], spriteColor:'#4A90D9', unlockLevel:3, description:'Compact performance coupe' },
+  // Motorsport
+  { id:'m4gt3', name:'BMW M4 GT3', series:'Motorsport', year:2022, topSpeed:310, acceleration:9.8, handling:9.8, grip:9.5, driftFactor:0.55, mass:1300, terrainBonus:[], spriteColor:'#1C69D4', unlockLevel:12, description:'Full GT3 race machine' },
+  { id:'lmdh', name:'BMW M Hybrid V8 LMDh', series:'Motorsport', year:2023, topSpeed:340, acceleration:10.0, handling:9.5, grip:9.8, driftFactor:0.45, mass:1030, terrainBonus:[], spriteColor:'#E63946', unlockLevel:15, description:'Le Mans Hypercar beast' },
+  { id:'m2csr', name:'BMW M2 CS Racing', series:'Motorsport', year:2020, topSpeed:275, acceleration:9.2, handling:9.5, grip:9.2, driftFactor:0.6, mass:1390, terrainBonus:[], spriteColor:'#FFD700', unlockLevel:11, description:'Cup racing series machine' },
+  // SUV & Terrain
+  { id:'x3m', name:'BMW X3 M', series:'SUV', year:2023, topSpeed:265, acceleration:8.2, handling:7.5, grip:7.8, driftFactor:0.5, mass:1885, terrainBonus:['gravel','sand','mud'], spriteColor:'#4A4A4A', unlockLevel:5, description:'Performance SUV with M heart' },
+  { id:'x5m', name:'BMW X5 M Competition', series:'SUV', year:2023, topSpeed:290, acceleration:8.8, handling:7.8, grip:8.0, driftFactor:0.55, mass:2235, terrainBonus:['gravel','sand','mud','snow'], spriteColor:'#1A1A2E', unlockLevel:8, description:'Super-SUV with 625hp' },
+  { id:'x6m', name:'BMW X6 M', series:'SUV', year:2023, topSpeed:290, acceleration:8.8, handling:7.9, grip:8.0, driftFactor:0.55, mass:2270, terrainBonus:['gravel','sand'], spriteColor:'#8B0000', unlockLevel:8, description:'Sports Activity Coupe M' },
+  { id:'x7', name:'BMW X7', series:'SUV', year:2023, topSpeed:250, acceleration:7.5, handling:6.8, grip:7.2, driftFactor:0.4, mass:2430, terrainBonus:['gravel','sand','mud','snow'], spriteColor:'#C0C0C0', unlockLevel:6, description:'Flagship 7-seater SAV' },
+  { id:'xm', name:'BMW XM Label Red', series:'SUV', year:2023, topSpeed:290, acceleration:9.0, handling:8.0, grip:8.2, driftFactor:0.58, mass:2510, terrainBonus:['gravel','sand','mud','snow','ice'], spriteColor:'#8B0000', unlockLevel:13, description:'748hp plug-in M SUV' },
+  // Electric
+  { id:'i4m50', name:'BMW i4 M50', series:'Electric', year:2023, topSpeed:225, acceleration:9.3, handling:8.8, grip:8.5, driftFactor:0.5, mass:2290, terrainBonus:[], spriteColor:'#00BFFF', unlockLevel:7, description:'Electric M performance sedan' },
+  { id:'i5m60', name:'BMW i5 M60', series:'Electric', year:2024, topSpeed:230, acceleration:9.1, handling:8.5, grip:8.3, driftFactor:0.48, mass:2280, terrainBonus:[], spriteColor:'#4A90D9', unlockLevel:9, description:'Performance electric executive' },
+  { id:'i7x60', name:'BMW i7 xDrive60', series:'Electric', year:2023, topSpeed:240, acceleration:8.5, handling:7.8, grip:7.8, driftFactor:0.42, mass:2710, terrainBonus:[], spriteColor:'#1A1A2E', unlockLevel:10, description:'Electric luxury flagship' },
+  { id:'ixm60', name:'BMW iX M60', series:'Electric', year:2022, topSpeed:250, acceleration:9.2, handling:8.2, grip:8.2, driftFactor:0.5, mass:2510, terrainBonus:['gravel','sand'], spriteColor:'#0D0D0D', unlockLevel:11, description:'618hp electric SUV powerhouse' },
+  // Vintage
+  { id:'e30m3', name:'BMW E30 M3', series:'Vintage', year:1986, topSpeed:235, acceleration:7.5, handling:9.0, grip:8.0, driftFactor:0.82, mass:1165, terrainBonus:[], spriteColor:'#FF4444', unlockLevel:14, description:'The iconic Group A racer' },
+  { id:'e46m3', name:'BMW E46 M3', series:'Vintage', year:2001, topSpeed:250, acceleration:8.2, handling:9.2, grip:8.5, driftFactor:0.75, mass:1570, terrainBonus:[], spriteColor:'#1C69D4', unlockLevel:14, description:'Analog driving perfection' },
+  { id:'e92m3', name:'BMW E92 M3', series:'Vintage', year:2008, topSpeed:270, acceleration:8.8, handling:9.0, grip:8.6, driftFactor:0.72, mass:1655, terrainBonus:[], spriteColor:'#FF6600', unlockLevel:13, description:'V8 screamer masterpiece' },
+  { id:'2002t', name:'BMW 2002 Turbo', series:'Vintage', year:1973, topSpeed:211, acceleration:7.8, handling:8.5, grip:7.5, driftFactor:0.88, mass:1080, terrainBonus:[], spriteColor:'#FFFFFF', unlockLevel:15, description:'First turbocharged BMW — legend' },
+];
+
+// ─── TRACK DATA ──────────────────────────────────────────────────────────────
+const TRACKS = [
+  { id:'nurburgring', name:'Nürburgring Nordschleife', location:'Germany', laps:2, weather:'cloudy', terrainType:'tarmac', unlockLevel:0, bgColor:'#1a2a1a', description:'73 turns of pure challenge', accentColor:'#228B22', length:20830, difficulty:9 },
+  { id:'bmwwelt', name:'BMW Welt Circuit', location:'Munich', laps:3, weather:'clear', terrainType:'tarmac', unlockLevel:0, bgColor:'#1a1a2e', description:'City backdrop, technical turns', accentColor:'#1C69D4', length:4200, difficulty:5 },
+  { id:'silverstone', name:'Silverstone Grand Prix', location:'UK', laps:3, weather:'cloudy', terrainType:'tarmac', unlockLevel:2, bgColor:'#1a2030', description:'Fast sweeping British classic', accentColor:'#C0C0C0', length:5891, difficulty:6 },
+  { id:'spa', name:'Spa-Francorchamps', location:'Belgium', laps:3, weather:'rain', terrainType:'tarmac', unlockLevel:3, bgColor:'#101820', description:'Elevation changes and rain', accentColor:'#4A90D9', length:7004, difficulty:8 },
+  { id:'monza', name:'Monza Temple of Speed', location:'Italy', laps:3, weather:'clear', terrainType:'tarmac', unlockLevel:3, bgColor:'#201510', description:'Long straights and chicanes', accentColor:'#FFD700', length:5793, difficulty:5 },
+  { id:'dubai', name:'Dubai Desert Strip', location:'UAE', laps:3, weather:'clear', terrainType:'sand', unlockLevel:4, bgColor:'#201a08', description:'Sand terrain and heat haze', accentColor:'#FFD700', length:5500, difficulty:4 },
+  { id:'alpine', name:'Alpine Snow Pass', location:'Austria', laps:2, weather:'snow', terrainType:'ice', unlockLevel:5, bgColor:'#0a1020', description:'Ice and snow, low visibility', accentColor:'#87CEEB', length:6200, difficulty:8 },
+  { id:'tokyo', name:'Tokyo Drift Circuit', location:'Japan', laps:3, weather:'rain', terrainType:'tarmac', unlockLevel:4, bgColor:'#050510', description:'Night track, wet urban roads', accentColor:'#FF69B4', length:4800, difficulty:7 },
+  { id:'capetown', name:'Cape Town Coastal Road', location:'South Africa', laps:3, weather:'clear', terrainType:'mixed', unlockLevel:6, bgColor:'#10181a', description:'Mixed tarmac and gravel', accentColor:'#20B2AA', length:5900, difficulty:6 },
+  { id:'dakar', name:'Dakar Off-Road Rally', location:'Africa', laps:1, weather:'clear', terrainType:'terrain', unlockLevel:7, bgColor:'#201008', description:'Pure terrain rally stage', accentColor:'#FF8C00', length:15000, difficulty:7 },
+];
+
+// ─── ACHIEVEMENTS ────────────────────────────────────────────────────────────
+const ACHIEVEMENTS = [
+  { id:'first_race', name:'First Wheels', condition:'Complete your first race', xpReward:100 },
+  { id:'first_drift', name:'Smoky Debut', condition:'Score 500 drift points', xpReward:150 },
+  { id:'sub2min', name:'Speed Demon', condition:'Complete a lap under 2 minutes', xpReward:300 },
+  { id:'drift_master', name:'Drift King', condition:'Reach x8 drift combo', xpReward:500 },
+  { id:'all_bmw', name:'The Collection', condition:'Unlock all BMW cars', xpReward:2000 },
+  { id:'clean_lap', name:'Surgeon\'s Lap', condition:'Complete a lap with no wall hits', xpReward:200 },
+  { id:'all_tracks', name:'World Traveler', condition:'Race on all 10 tracks', xpReward:1000 },
+  { id:'first_place', name:'On the Podium', condition:'Finish 1st in a race', xpReward:400 },
+  { id:'vintage_win', name:'Old School Cool', condition:'Win a race in a Vintage car', xpReward:600 },
+  { id:'ev_win', name:'Silent Storm', condition:'Win a race in an EV', xpReward:600 },
+  { id:'terrain_master', name:'All Terrain', condition:'Complete Free Roam on all surface types', xpReward:800 },
+  { id:'level10', name:'M Division', condition:'Reach level 10', xpReward:1000 },
+];
+
+// ─── TERRAIN SURFACE DATA ────────────────────────────────────────────────────
+const SURFACES = {
+  tarmac: { gripFactor:1.0, dustColor:'rgba(100,100,100,0.3)', particleColor:'#888' },
+  gravel:  { gripFactor:0.7, dustColor:'rgba(160,130,80,0.4)', particleColor:'#B8A060' },
+  snow:    { gripFactor:0.4, dustColor:'rgba(220,240,255,0.5)', particleColor:'#E0EEFF' },
+  ice:     { gripFactor:0.2, dustColor:'rgba(180,210,255,0.3)', particleColor:'#BCD4FF' },
+  sand:    { gripFactor:0.5, dustColor:'rgba(210,180,100,0.4)', particleColor:'#D4B464' },
+  mud:     { gripFactor:0.55,dustColor:'rgba(80,60,30,0.5)', particleColor:'#503C1E' },
+  mixed:   { gripFactor:0.75,dustColor:'rgba(140,120,80,0.35)', particleColor:'#8C7850' },
+  terrain: { gripFactor:0.6, dustColor:'rgba(150,100,50,0.4)', particleColor:'#967032' },
+};
+
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const BMW_BLUE   = '#1C69D4';
+const BMW_DARK   = '#1A1A2E';
+const BMW_WHITE  = '#F0F0F0';
+const M_RED      = '#E63946';
+const CARBON     = '#0D0D0D';
+const GOLD       = '#FFD700';
+const W          = 960;
+const H          = 540;
+const ROAD_W     = 2000;
+const SEG_L      = 200;
+const DRAW_DIST  = 200;
+const CAMERA_H   = 1000;
+const CAMERA_DEPTH = 0.84;
+
+// ─── GAME STATE ──────────────────────────────────────────────────────────────
+let G = {
+  screen: 'splash',   // splash / menu / carSelect / trackSelect / modeSelect / loading / race / drift / trial / roam / pause / results / garage / leaderboard
+  mode: 'race',
+  selectedCar: CARS[1],
+  selectedTrack: TRACKS[1],
+  quality: 'HIGH',    // LOW / MEDIUM / HIGH
+  dt: 0,
+  lastTime: 0,
+  frame: 0,
+  animT: 0,
+  menuSel: 0,
+  carSelIdx: 1,
+  trackSelIdx: 1,
+  splashTimer: 0,
+  loadProgress: 0,
+  loadTarget: 1,
+};
+
+// ─── SAVE DATA ───────────────────────────────────────────────────────────────
+function defaultSave() {
+  return { level:1, xp:0, xpToNext:500, unlockedCars:['bmw3s','bmw1','bmwwelt'], unlockedTracks:['bmwwelt','silverstone','nurburgring'], bestLaps:{}, driftHighScores:{}, settings:{ sfx:true, music:true, quality:'AUTO' }, achievements:[], customColor:'#FFFFFF', rimStyle:0 };
+}
+let SAVE = (() => { try { return JSON.parse(localStorage.getItem('bmwRacing') || 'null') || defaultSave(); } catch(e){ return defaultSave(); } })();
+function savePersist() { try { localStorage.setItem('bmwRacing', JSON.stringify(SAVE)); } catch(e){} }
+
+function isCarUnlocked(car) { return SAVE.unlockedCars.includes(car.id) || car.unlockLevel === 0; }
+function isTrackUnlocked(t)  { return SAVE.unlockedTracks.includes(t.id) || t.unlockLevel === 0; }
+function addXP(amount) {
+  SAVE.xp += amount;
+  while (SAVE.xp >= SAVE.xpToNext) {
+    SAVE.xp -= SAVE.xpToNext;
+    SAVE.level++;
+    SAVE.xpToNext = Math.floor(SAVE.xpToNext * 1.3);
+    unlockForLevel(SAVE.level);
+  }
+  savePersist();
+}
+function unlockForLevel(lv) {
+  CARS.forEach(c => { if (c.unlockLevel === lv && !SAVE.unlockedCars.includes(c.id)) SAVE.unlockedCars.push(c.id); });
+  TRACKS.forEach(t => { if (t.unlockLevel === lv && !SAVE.unlockedTracks.includes(t.id)) SAVE.unlockedTracks.push(t.id); });
+}
+
+// ─── CANVAS SETUP ────────────────────────────────────────────────────────────
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let scaleX = 1, scaleY = 1;
+
+function resize() {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const aspect = W / H;
+  let cw, ch;
+  if (vw / vh > aspect) { ch = vh; cw = Math.floor(vh * aspect); }
+  else { cw = vw; ch = Math.floor(vw / aspect); }
+  canvas.style.width  = cw + 'px';
+  canvas.style.height = ch + 'px';
+  canvas.width  = W;
+  canvas.height = H;
+  scaleX = cw / W;
+  scaleY = ch / H;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ─── OFFSCREEN BUFFERS ───────────────────────────────────────────────────────
+const bgBuf   = new OffscreenCanvas(W, H);
+const bgCtx   = bgBuf.getContext('2d');
+const roadBuf = new OffscreenCanvas(W, H);
+const roadCtx = roadBuf.getContext('2d');
+
+// ─── INPUT ───────────────────────────────────────────────────────────────────
+const KEYS = {};
+window.addEventListener('keydown', e => {
+  KEYS[e.code] = true;
+  if (G.screen === 'race' || G.screen === 'drift' || G.screen === 'trial' || G.screen === 'roam') {
+    if (e.code === 'Escape') { G.screen = 'pause'; }
+    if (e.code === 'KeyR') resetPlayerCar();
+  }
+  if (G.screen === 'pause') {
+    if (e.code === 'Escape' || e.code === 'KeyP') G.screen = G.mode === 'race' ? 'race' : G.mode === 'drift' ? 'drift' : G.mode === 'trial' ? 'trial' : 'roam';
+  }
+  handleMenuKey(e.code);
+});
+window.addEventListener('keyup', e => { KEYS[e.code] = false; });
+
+// Touch / virtual joystick
+let TOUCH = { steer:0, throttle:0, brake:0, drift:false, active:false };
+let touchJoy = { cx:80, cy:H-80, r:55, dx:0, dy:0, id:-1 };
+let touchDrift = { cx:W-70, cy:H-80, r:40, id:-1 };
+
+canvas.addEventListener('touchstart', e => { e.preventDefault(); for (let t of e.changedTouches) handleTouchStart(t); }, {passive:false});
+canvas.addEventListener('touchmove',  e => { e.preventDefault(); for (let t of e.changedTouches) handleTouchMove(t); }, {passive:false});
+canvas.addEventListener('touchend',   e => { e.preventDefault(); for (let t of e.changedTouches) handleTouchEnd(t); }, {passive:false});
+
+function toGameCoords(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  return { x:(clientX - rect.left) / scaleX, y:(clientY - rect.top) / scaleY };
+}
+function handleTouchStart(t) {
+  const { x, y } = toGameCoords(t.clientX, t.clientY);
+  if (G.screen !== 'race' && G.screen !== 'drift' && G.screen !== 'trial' && G.screen !== 'roam') {
+    handleCanvasClick(x, y); return;
+  }
+  const djoy = Math.hypot(x - touchJoy.cx, y - touchJoy.cy);
+  if (djoy < touchJoy.r + 30) { touchJoy.id = t.identifier; TOUCH.active = true; return; }
+  const ddrift = Math.hypot(x - touchDrift.cx, y - touchDrift.cy);
+  if (ddrift < touchDrift.r + 20) { touchDrift.id = t.identifier; TOUCH.drift = true; return; }
+}
+function handleTouchMove(t) {
+  if (t.identifier === touchJoy.id) {
+    const { x, y } = toGameCoords(t.clientX, t.clientY);
+    touchJoy.dx = Math.max(-1, Math.min(1, (x - touchJoy.cx) / touchJoy.r));
+    touchJoy.dy = Math.max(-1, Math.min(1, (y - touchJoy.cy) / touchJoy.r));
+    TOUCH.steer = touchJoy.dx;
+    TOUCH.throttle = Math.max(0, -touchJoy.dy);
+    TOUCH.brake = Math.max(0, touchJoy.dy);
+  }
+}
+function handleTouchEnd(t) {
+  if (t.identifier === touchJoy.id) { touchJoy.dx=0; touchJoy.dy=0; touchJoy.id=-1; TOUCH.steer=0; TOUCH.throttle=0; TOUCH.brake=0; TOUCH.active=false; }
+  if (t.identifier === touchDrift.id) { touchDrift.id=-1; TOUCH.drift=false; }
+}
+
+// Gamepad
+let GP = null;
+window.addEventListener('gamepadconnected', e => { GP = e.gamepad; });
+window.addEventListener('gamepaddisconnected', () => { GP = null; });
+function updateGamepad() {
+  if (!GP) return;
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  if (!pads[GP.index]) return;
+  GP = pads[GP.index];
+}
+
+function steerInput()    { return (KEYS['ArrowLeft']||KEYS['KeyA'] ? -1:0) + (KEYS['ArrowRight']||KEYS['KeyD'] ? 1:0) + (TOUCH.active ? TOUCH.steer : 0) + (GP ? GP.axes[0] : 0); }
+function throttleInput() { return (KEYS['ArrowUp']||KEYS['KeyW'] ? 1:0) + (TOUCH.active ? TOUCH.throttle : 0) + (GP ? Math.max(0,(GP.buttons[7]?.value||0)) : 0); }
+function brakeInput()    { return (KEYS['ArrowDown']||KEYS['KeyS'] ? 1:0) + (TOUCH.active ? TOUCH.brake : 0) + (GP ? Math.max(0,(GP.buttons[6]?.value||0)) : 0); }
+function driftInput()    { return KEYS['Space'] || TOUCH.drift || (GP ? (GP.buttons[0]?.pressed||false) : false); }
+
+// ─── AUDIO (WEB AUDIO API) ───────────────────────────────────────────────────
+let ACtx, engineOsc, engineGain, filterNode, masterGain;
+let audioInit = false;
+function initAudio() {
+  if (audioInit) return;
+  audioInit = true;
+  ACtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = ACtx.createGain(); masterGain.gain.value = SAVE.settings.sfx ? 0.7 : 0;
+  masterGain.connect(ACtx.destination);
+  engineOsc = ACtx.createOscillator(); engineOsc.type = 'sawtooth'; engineOsc.frequency.value = 80;
+  engineGain = ACtx.createGain(); engineGain.gain.value = 0.15;
+  filterNode = ACtx.createBiquadFilter(); filterNode.type='lowpass'; filterNode.frequency.value=800;
+  engineOsc.connect(filterNode); filterNode.connect(engineGain); engineGain.connect(masterGain);
+  engineOsc.start();
+}
+function playSound(type) {
+  if (!audioInit || !SAVE.settings.sfx) return;
+  if (type === 'click') {
+    const o = ACtx.createOscillator(); const g = ACtx.createGain();
+    o.type='sine'; o.frequency.value=800; g.gain.setValueAtTime(0.3,ACtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ACtx.currentTime+0.08);
+    o.connect(g); g.connect(masterGain); o.start(); o.stop(ACtx.currentTime+0.08);
+  } else if (type === 'thud') {
+    const o = ACtx.createOscillator(); const g = ACtx.createGain();
+    o.type='square'; o.frequency.value=60; g.gain.setValueAtTime(0.5,ACtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ACtx.currentTime+0.15);
+    o.connect(g); g.connect(masterGain); o.start(); o.stop(ACtx.currentTime+0.15);
+  } else if (type === 'shift') {
+    if (engineOsc) { const f = engineOsc.frequency.value * 0.7; engineOsc.frequency.setValueAtTime(f, ACtx.currentTime); }
+  }
+}
+function updateEngineSound(rpm) {
+  if (!audioInit) return;
+  const freq = 80 + rpm * 320;
+  engineOsc.frequency.setTargetAtTime(freq, ACtx.currentTime, 0.05);
+  engineGain.gain.setTargetAtTime(0.1 + rpm * 0.12, ACtx.currentTime, 0.05);
+  filterNode.frequency.setTargetAtTime(400 + rpm * 2000, ACtx.currentTime, 0.05);
+}
+let squealOsc = null, squealGain = null;
+function updateDriftSound(drifting) {
+  if (!audioInit) return;
+  if (drifting && !squealOsc) {
+    const bufSize = ACtx.sampleRate * 0.5;
+    const buf = ACtx.createBuffer(1, bufSize, ACtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i=0;i<bufSize;i++) d[i]=(Math.random()*2-1);
+    const src = ACtx.createBufferSource(); src.buffer=buf; src.loop=true;
+    const flt = ACtx.createBiquadFilter(); flt.type='bandpass'; flt.frequency.value=4000; flt.Q.value=0.5;
+    squealGain = ACtx.createGain(); squealGain.gain.value=0.08;
+    src.connect(flt); flt.connect(squealGain); squealGain.connect(masterGain);
+    src.start(); squealOsc = src;
+  } else if (!drifting && squealOsc) {
+    squealGain.gain.exponentialRampToValueAtTime(0.001, ACtx.currentTime+0.2);
+    squealOsc.stop(ACtx.currentTime+0.2); squealOsc=null; squealGain=null;
+  }
+}
+
+// ─── PERFORMANCE BENCHMARK ───────────────────────────────────────────────────
+function benchmarkQuality(cb) {
+  let frames = 0, t0 = performance.now();
+  function benchFrame() {
+    const bc = new OffscreenCanvas(320,240);
+    const bx = bc.getContext('2d');
+    for (let i=0;i<50;i++) { bx.fillStyle='#'+Math.floor(Math.random()*0xFFFFFF).toString(16).padStart(6,'0'); bx.fillRect(Math.random()*320,Math.random()*240,40,40); }
+    frames++;
+    if (frames < 10) requestAnimationFrame(benchFrame);
+    else {
+      const elapsed = performance.now() - t0;
+      const fps = frames / (elapsed / 1000);
+      if (fps < 25) G.quality = 'LOW';
+      else if (fps < 45) G.quality = 'MEDIUM';
+      else G.quality = 'HIGH';
+      if (SAVE.settings.quality !== 'AUTO') G.quality = SAVE.settings.quality;
+      cb();
+    }
+  }
+  requestAnimationFrame(benchFrame);
+}
+
+// ─── PARTICLE SYSTEM ─────────────────────────────────────────────────────────
+const MAX_SMOKE = 30, MAX_RAIN = 60, MAX_SKID = 20;
+let smokePool  = Array.from({length:MAX_SMOKE},  ()=>({x:0,y:0,vx:0,vy:0,life:0,maxLife:0,r:0,active:false,col:'rgba(200,200,200,0.5)'}));
+let rainPool   = Array.from({length:MAX_RAIN},   ()=>({x:0,y:0,len:0,spd:0,active:false}));
+let skidPool   = Array.from({length:MAX_SKID},   ()=>({x:0,y:0,active:false,alpha:1}));
+
+function spawnSmoke(x, y, col) {
+  if (G.quality === 'LOW') return;
+  const maxS = G.quality === 'MEDIUM' ? 15 : MAX_SMOKE;
+  let p = smokePool.find(p=>!p.active);
+  if (!p) p = smokePool[0];
+  const active = smokePool.filter(p=>p.active).length;
+  if (active >= maxS) return;
+  p.x=x; p.y=y; p.vx=(Math.random()-0.5)*30; p.vy=-20-Math.random()*20;
+  p.life=0.8; p.maxLife=0.8; p.r=4+Math.random()*8; p.active=true; p.col=col||'rgba(200,200,200,';
+}
+function updateParticles(dt) {
+  smokePool.forEach(p => {
+    if (!p.active) return;
+    p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt; p.r += 12*dt;
+    if (p.life <= 0) p.active = false;
+  });
+  if (G.screen==='race'||G.screen==='drift'||G.screen==='trial'||G.screen==='roam') {
+    const track = G.selectedTrack;
+    if (track.weather==='rain'||track.weather==='snow') {
+      let count=0;
+      rainPool.forEach(p => { if(p.active)count++; });
+      if (count < MAX_RAIN) {
+        const p=rainPool.find(p=>!p.active);
+        if(p){p.x=Math.random()*W;p.y=Math.random()*H*0.6;p.len=track.weather==='snow'?4:12;p.spd=track.weather==='snow'?60:280;p.active=true;}
+      }
+      rainPool.forEach(p => {
+        if(!p.active)return;
+        p.y+=p.spd*dt; p.x+=(track.weather==='rain'?80:10)*dt;
+        if(p.y>H||p.x>W){p.active=false;}
+      });
+    }
+  }
+}
+
+// ─── PSEUDO-3D ROAD ENGINE ───────────────────────────────────────────────────
+// Track segment definition: each segment has curve, hill, color, etc.
+let trackSegments = [];
+let trackLength = 0;
+let cameraPos = 0;
+let playerZ = 0;
+
+function buildTrack(track) {
+  trackSegments = [];
+  const segCount = 800;
+  for (let i = 0; i < segCount; i++) {
+    const t = i / segCount;
+    let curve = 0, hill = 0;
+    // Generate track shape based on track ID
+    switch(track.id) {
+      case 'nurburgring':
+        curve = Math.sin(t*Math.PI*8)*0.8 + Math.cos(t*Math.PI*3)*0.4;
+        hill  = Math.sin(t*Math.PI*6)*50;
+        break;
+      case 'monza':
+        curve = (t<0.3||t>0.7) ? 0 : Math.sin((t-0.3)*Math.PI*4)*1.2;
+        hill  = 0;
+        break;
+      case 'spa':
+        curve = Math.sin(t*Math.PI*5)*0.7; hill = Math.sin(t*Math.PI*4)*80;
+        break;
+      case 'alpine':
+        curve = Math.sin(t*Math.PI*10)*1.2; hill = Math.sin(t*Math.PI*8)*60;
+        break;
+      case 'tokyo':
+        curve = Math.sin(t*Math.PI*12)*0.6 + (Math.sin(t*Math.PI*3)>0?0.8:0);
+        hill  = Math.sin(t*Math.PI*6)*20;
+        break;
+      default:
+        curve = Math.sin(t*Math.PI*6)*0.6 + Math.cos(t*Math.PI*4)*0.3;
+        hill  = Math.sin(t*Math.PI*5)*30;
+    }
+    const isDark = Math.floor(i/6)%2===0;
+    trackSegments.push({
+      z: i * SEG_L,
+      curve, hill,
+      color1: isDark ? '#2a2a2a' : '#3a3a3a',
+      color2: isDark ? '#555' : '#666',
+      rumble1: isDark ? '#CC2222' : '#CCCCCC',
+      rumble2: isDark ? '#CC2222' : '#CCCCCC',
+      grass1:  isDark ? track.bgColor : adjustBrightness(track.bgColor, 20),
+      laneColor: '#FFFF00',
+      x:0, y:0, w:0, scale:0,
+    });
+  }
+  trackLength = trackSegments.length * SEG_L;
+}
+
+function adjustBrightness(hex, amt) {
+  const n = parseInt(hex.replace('#',''), 16);
+  const r = Math.min(255, Math.max(0, (n>>16) + amt));
+  const g = Math.min(255, Math.max(0, ((n>>8)&0xFF) + amt));
+  const b = Math.min(255, Math.max(0, (n&0xFF) + amt));
+  return `#${((r<<16)|(g<<8)|b).toString(16).padStart(6,'0')}`;
+}
+
+function project(seg, camX, camH, camDepth, width, height, roadW) {
+  seg.scale = camDepth / (seg.z - cameraPos);
+  seg.x = (1 + seg.scale * (seg.relX||0 - camX)) * width / 2;
+  seg.y = (1 - seg.scale * (camH - (seg.hill||0))) * height / 2;
+  seg.w = seg.scale * roadW * width / 2;
+}
+
+function drawRoad() {
+  roadCtx.clearRect(0, 0, W, H);
+  const surface = SURFACES[G.selectedTrack.terrainType] || SURFACES.tarmac;
+  let maxy = H;
+  let x = 0, dx = 0;
+  const start = Math.floor(cameraPos / SEG_L) % trackSegments.length;
+  for (let n = 0; n < DRAW_DIST; n++) {
+    const idx = (start + n) % trackSegments.length;
+    const seg = trackSegments[idx];
+    seg.relX = x;
+    project(seg, PLAYER.x/ROAD_W, CAMERA_H, CAMERA_DEPTH, W, H, ROAD_W);
+    x += dx;
+    dx += seg.curve;
+  }
+  // Draw from far to near
+  for (let n = DRAW_DIST - 1; n >= 0; n--) {
+    const idx = (start + n) % trackSegments.length;
+    const seg = trackSegments[idx];
+    const next = trackSegments[(idx+1)%trackSegments.length];
+    if (next.y >= seg.y) continue;
+    if (seg.y > maxy) continue;
+    drawSegment(seg, next, maxy, surface);
+    maxy = seg.y;
+  }
+}
+
+function drawSegment(seg, next, maxy, surface) {
+  const x1 = seg.x, y1 = seg.y < 0 ? 0 : seg.y;
+  const x2 = next ? next.x : seg.x, y2 = Math.min(maxy, next ? next.y : seg.y + 40);
+  const w1 = seg.w, w2 = next ? next.w : seg.w;
+  if (y1 >= y2) return;
+  // Grass
+  roadCtx.fillStyle = seg.grass1;
+  roadCtx.fillRect(0, y1, W, y2 - y1);
+  // Road
+  drawTrapezoid(roadCtx, x1-w1, y1, x1+w1, y1, x2+w2, y2, x2-w2, y2, seg.color1);
+  // Rumble strips
+  drawTrapezoid(roadCtx, x1-w1, y1, x1-w1*0.82, y1, x2-w2*0.82, y2, x2-w2, y2, seg.rumble1);
+  drawTrapezoid(roadCtx, x1+w1*0.82, y1, x1+w1, y1, x2+w2, y2, x2+w2*0.82, y2, seg.rumble2);
+  // Lane center
+  if (Math.floor(seg.z/SEG_L)%4<2) {
+    const lw = w1*0.03;
+    drawTrapezoid(roadCtx, x1-lw, y1, x1+lw, y1, x2+lw*next.w/w1, y2, x2-lw*next.w/w1, y2, '#FFFF88');
+  }
+}
+
+function drawTrapezoid(ctx, x1,y1, x2,y2, x3,y3, x4,y4, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.lineTo(x4,y4); ctx.closePath(); ctx.fill();
+}
+
+// ─── PLAYER CAR ──────────────────────────────────────────────────────────────
+let PLAYER = {
+  x:0, y:0, z:0, speed:0, angle:0,
+  vx:0, vy:0, angVel:0,
+  gear:1, rpm:0, drifting:false,
+  driftAngle:0, driftScore:0, combo:1, comboTimer:0,
+  lapTime:0, bestLap:Infinity, lapCount:0, lapSplit:[0,0,0],
+  ghostFrames:[], ghostPlay:[], ghostIdx:0,
+  wallHits:0, sectorPassed:[false,false,false],
+  finished:false, position:1,
+};
+
+function resetPlayerCar() {
+  PLAYER.x = 0; PLAYER.z = 200; PLAYER.speed = 0; PLAYER.vx = 0; PLAYER.vy = 0;
+  PLAYER.angVel = 0; PLAYER.drifting = false; PLAYER.angle = 0;
+  PLAYER.driftAngle = 0; PLAYER.combo = 1; PLAYER.comboTimer = 0;
+  cameraPos = PLAYER.z - 1200;
+}
+
+const GEARS = [0, 30, 70, 120, 170, 220, 270, 350];
+
+function updatePlayer(dt) {
+  const car = G.selectedCar;
+  const surface = SURFACES[G.selectedTrack.terrainType] || SURFACES.tarmac;
+  let grip = surface.gripFactor;
+  if (car.terrainBonus && car.terrainBonus.includes(G.selectedTrack.terrainType)) grip = Math.min(1.0, grip + 0.2);
+
+  const th = throttleInput(); const br = brakeInput(); const st = steerInput(); const drift = driftInput();
+  const kmh = Math.abs(PLAYER.speed) * 3.6;
+  const maxSpeed = car.topSpeed;
+  const accel = car.acceleration * 12;
+  const decel = 180;
+  const maxSteer = 2.5 - kmh * 0.005;
+
+  // Throttle / brake
+  if (th > 0) {
+    PLAYER.speed += th * accel * grip * dt;
+    if (PLAYER.speed > maxSpeed / 3.6) PLAYER.speed = maxSpeed / 3.6;
+  } else if (br > 0) {
+    PLAYER.speed -= br * decel * dt;
+    if (PLAYER.speed < -10) PLAYER.speed = -10;
+  } else {
+    PLAYER.speed *= 1 - (0.5 * dt);
+  }
+
+  // Gear & RPM
+  const absSpd = Math.abs(PLAYER.speed) * 3.6;
+  let prevGear = PLAYER.gear;
+  while (PLAYER.gear < 7 && absSpd > GEARS[PLAYER.gear+1]) PLAYER.gear++;
+  while (PLAYER.gear > 1 && absSpd < GEARS[PLAYER.gear] * 0.6) PLAYER.gear--;
+  if (PLAYER.gear !== prevGear) playSound('shift');
+  PLAYER.rpm = Math.min(1, (absSpd - GEARS[PLAYER.gear]) / Math.max(1, GEARS[PLAYER.gear+1] - GEARS[PLAYER.gear]));
+  updateEngineSound(PLAYER.rpm);
+
+  // Steering
+  if (Math.abs(PLAYER.speed) > 1) {
+    const steerAmount = st * maxSteer * Math.min(1, Math.abs(PLAYER.speed)/5);
+    PLAYER.angVel += steerAmount * dt * 60;
+    PLAYER.angVel *= 1 - 4.5 * dt;
+    PLAYER.angle += PLAYER.angVel * dt;
+  }
+
+  // Drift
+  const driftCondition = drift && kmh > 40 && Math.abs(st) > 0.1;
+  if (driftCondition) {
+    PLAYER.drifting = true;
+    const lateralFric = car.driftFactor * (1 - grip * 0.5);
+    PLAYER.vx = PLAYER.speed * Math.sin(PLAYER.angle) * lateralFric;
+    PLAYER.driftAngle = Math.abs(PLAYER.angVel) * 30;
+    const pts = PLAYER.driftAngle * kmh * 0.012 * dt;
+    PLAYER.driftScore += pts * PLAYER.combo;
+    PLAYER.comboTimer = Math.min(PLAYER.comboTimer + pts * 0.1, 1);
+    if (PLAYER.comboTimer >= 1) { PLAYER.combo = Math.min(8, PLAYER.combo + 1); PLAYER.comboTimer = 0; }
+    spawnSmoke(PLAYER.x + W/2, H * 0.7 - 20, surface.dustColor);
+  } else {
+    PLAYER.drifting = false;
+    PLAYER.driftAngle *= 0.9;
+    PLAYER.comboTimer -= dt * 0.5;
+    if (PLAYER.comboTimer < 0) { PLAYER.comboTimer = 0; if(PLAYER.combo>1){PLAYER.combo=1;} }
+    PLAYER.vx *= 1 - (8 * grip * dt);
+  }
+  updateDriftSound(PLAYER.drifting && G.quality !== 'LOW');
+
+  // Move
+  PLAYER.x += PLAYER.vx * dt;
+  cameraPos += PLAYER.speed * dt;
+  if (cameraPos < 0) cameraPos += trackLength;
+  PLAYER.z = cameraPos;
+
+  // Wall collision
+  const roadEdge = ROAD_W * 0.5;
+  if (Math.abs(PLAYER.x) > roadEdge) {
+    PLAYER.x = Math.sign(PLAYER.x) * roadEdge;
+    PLAYER.speed *= 0.3; PLAYER.vx = -PLAYER.vx * 0.3; PLAYER.angVel *= 0.3;
+    PLAYER.wallHits++;
+    playSound('thud');
+    spawnSmoke(PLAYER.x + W/2, H*0.7, 'rgba(255,200,0,');
+  }
+
+  // Lap tracking
+  PLAYER.lapTime += dt;
+  // Sector splits (at 1/3, 2/3 of track)
+  const prog = (cameraPos % trackLength) / trackLength;
+  for (let s=0; s<3; s++) {
+    const sPos = (s+1)/3;
+    if (!PLAYER.sectorPassed[s] && prog > sPos) { PLAYER.lapSplit[s] = PLAYER.lapTime; PLAYER.sectorPassed[s] = true; }
+  }
+  if (prog < 0.05 && PLAYER.sectorPassed[2]) {
+    // Lap complete
+    if (PLAYER.lapTime < PLAYER.bestLap) { PLAYER.bestLap = PLAYER.lapTime; }
+    PLAYER.sectorPassed = [false,false,false];
+    PLAYER.lapCount++;
+    PLAYER.lapTime = 0;
+    if (G.mode==='race' && PLAYER.lapCount >= G.selectedTrack.laps) finishRace();
+    if (G.mode==='trial') { saveTrialTime(); }
+  }
+
+  // Ghost recording (trial mode)
+  if (G.mode==='trial' && G.frame%3===0) { PLAYER.ghostFrames.push({x:PLAYER.x,z:PLAYER.z,angle:PLAYER.angle}); }
+  if (G.mode==='trial' && PLAYER.ghostPlay.length>0) {
+    PLAYER.ghostIdx = (PLAYER.ghostIdx + 1) % PLAYER.ghostPlay.length;
+  }
+}
+
+function saveTrialTime() {
+  const key = G.selectedCar.id + '_' + G.selectedTrack.id;
+  const prev = SAVE.bestLaps[key] || Infinity;
+  if (PLAYER.bestLap < prev) { SAVE.bestLaps[key] = PLAYER.bestLap; PLAYER.ghostPlay = [...PLAYER.ghostFrames]; savePersist(); }
+  PLAYER.ghostFrames = [];
+}
+
+function finishRace() {
+  PLAYER.finished = true;
+  const xpTable = { 1:800, 2:600, 3:400, 4:200, 5:100, 6:80, 7:60, 8:50, 9:40 };
+  addXP(xpTable[PLAYER.position] || 40);
+  checkAchievements();
+  setTimeout(() => { G.screen = 'results'; }, 2000);
+}
+
+// ─── AI OPPONENTS ────────────────────────────────────────────────────────────
+let AI = [];
+function initAI() {
+  AI = [];
+  const count = G.quality === 'LOW' ? 4 : 8;
+  const aiCars = CARS.filter(c => c.id !== G.selectedCar.id).slice(0, count);
+  for (let i = 0; i < count; i++) {
+    const car = aiCars[i % aiCars.length];
+    AI.push({
+      car, z: -SEG_L * (i+1) * 3, x: (Math.random()-0.5)*800,
+      speed: 0, angle:0, lap:0, lapTime:0, finished:false, position:i+2,
+      waypoint:0,
+    });
+  }
+}
+
+function updateAI(dt) {
+  const playerKmh = PLAYER.speed * 3.6;
+  AI.forEach((ai, i) => {
+    if (ai.finished) return;
+    // Rubber-band: closer to player → faster
+    const relZ = (PLAYER.z - ai.z + trackLength) % trackLength;
+    const rubberBand = relZ > trackLength * 0.5 ? 1.3 : (relZ > 200 ? 1.1 : (relZ < 50 ? 0.85 : 1.0));
+    const topSpd = ai.car.topSpeed / 3.6 * rubberBand;
+    ai.speed += (topSpd - ai.speed) * dt * 0.5;
+    if (ai.speed > topSpd) ai.speed = topSpd;
+    // Simple steering toward track center
+    const steer = -ai.x / ROAD_W * 2;
+    ai.angle += steer * dt * 2;
+    ai.x += Math.sin(ai.angle) * ai.speed * dt * 0.3;
+    ai.x = Math.max(-ROAD_W*0.4, Math.min(ROAD_W*0.4, ai.x));
+    ai.z += ai.speed * dt;
+    if (ai.z > trackLength) { ai.z -= trackLength; ai.lap++; if (ai.lap >= G.selectedTrack.laps && G.mode==='race') ai.finished = true; }
+  });
+  // Recalculate positions
+  const allZ = [{ z: PLAYER.z + PLAYER.lapCount * trackLength }].concat(AI.map(a => ({ z: a.z + a.lap * trackLength })));
+  allZ.sort((a,b) => b.z - a.z);
+  PLAYER.position = allZ.findIndex(a => a === allZ[0]) + 1;
+  // Actually fix positions properly:
+  const sorted = [{entity:PLAYER, total: PLAYER.z + PLAYER.lapCount*trackLength}].concat(AI.map(a=>({entity:a, total:a.z+a.lap*trackLength})));
+  sorted.sort((a,b)=>b.total-a.total);
+  sorted.forEach((s,i) => { if(s.entity===PLAYER) PLAYER.position=i+1; else s.entity.position=i+1; });
+}
+
+// ─── SPRITE RENDERING ────────────────────────────────────────────────────────
+// Build sprite sheet canvas: each car drawn procedurally at 8 angles
+const SPRITE_SHEET = new OffscreenCanvas(512, 512);
+const SS_CTX = SPRITE_SHEET.getContext('2d');
+const SPRITE_W = 64, SPRITE_H = 32;
+
+function buildSpriteSheet() {
+  SS_CTX.clearRect(0, 0, 512, 512);
+  CARS.forEach((car, ci) => {
+    for (let a = 0; a < 8; a++) {
+      const sx = (ci % 8) * SPRITE_W;
+      const sy = (Math.floor(ci / 8) * 8 + a) * SPRITE_H;
+      drawCarSprite(SS_CTX, sx, sy, SPRITE_W, SPRITE_H, car.spriteColor, a, car.series);
+    }
+  });
+}
+
+function drawCarSprite(ctx, x, y, w, h, color, angle, series) {
+  ctx.save();
+  ctx.translate(x + w/2, y + h/2);
+  const tilt = (angle - 4) * 0.15;
+  ctx.rotate(tilt);
+  // Body
+  const g = ctx.createLinearGradient(-w*0.4, -h*0.4, w*0.4, h*0.4);
+  g.addColorStop(0, lighten(color, 40)); g.addColorStop(1, color);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  const bw = w*0.42, bh = h*0.38;
+  ctx.roundRect(-bw, -bh, bw*2, bh*2, 6);
+  ctx.fill();
+  // Roof
+  ctx.fillStyle = series === 'SUV' ? adjustBrightness(color, -20) : '#111';
+  ctx.beginPath(); ctx.roundRect(-bw*0.6, -bh*0.9, bw*1.2, bh*0.8, 4); ctx.fill();
+  // Windshield
+  ctx.fillStyle = 'rgba(100,180,255,0.7)';
+  ctx.beginPath(); ctx.roundRect(-bw*0.5, -bh*0.85, bw*1.0, bh*0.4, 3); ctx.fill();
+  // Wheels
+  ctx.fillStyle = '#111';
+  [[-bw*0.75,-bh*0.6],[bw*0.75,-bh*0.6],[-bw*0.75,bh*0.6],[bw*0.75,bh*0.6]].forEach(([wx,wy]) => {
+    ctx.beginPath(); ctx.ellipse(wx, wy, bw*0.22, bh*0.35, 0, 0, Math.PI*2); ctx.fill();
+  });
+  // BMW Kidney grille hint
+  ctx.fillStyle = '#1C69D4';
+  ctx.beginPath(); ctx.roundRect(-bw*0.18, -bh*0.05, bw*0.14, bh*0.4, 3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(bw*0.04, -bh*0.05, bw*0.14, bh*0.4, 3); ctx.fill();
+  ctx.restore();
+}
+
+function lighten(hex, amt) { return adjustBrightness(hex, amt); }
+
+function drawPlayerCar() {
+  const carIdx = CARS.indexOf(G.selectedCar);
+  if (carIdx < 0) return;
+  const angle8 = Math.round(((PLAYER.angVel * 0.5) % (Math.PI*2)) / (Math.PI*2) * 8 + 8) % 8;
+  const sx = (carIdx % 8) * SPRITE_W;
+  const sy = (Math.floor(carIdx / 8) * 8 + angle8) * SPRITE_H;
+  const drawW = 96, drawH = 48;
+  const cx = W/2 - drawW/2 + PLAYER.x * 0.3;
+  const cy = H * 0.72 - drawH;
+  ctx.drawImage(SPRITE_SHEET, sx, sy, SPRITE_W, SPRITE_H, cx, cy, drawW, drawH);
+  // Shadow
+  if (G.quality !== 'LOW') {
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.ellipse(cx+drawW/2, cy+drawH*0.9, drawW*0.4, 10, 0, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function drawAICars() {
+  AI.forEach(ai => {
+    const relZ = (ai.z - cameraPos + trackLength) % trackLength;
+    if (relZ < SEG_L || relZ > DRAW_DIST * SEG_L) return;
+    const scale = CAMERA_DEPTH / relZ * SEG_L * 20;
+    if (scale < 0.05) return;
+    const screenX = W/2 + (ai.x - PLAYER.x) * scale * 0.8;
+    const screenY = H * 0.5 + (1-scale) * H * 0.25;
+    const w = SPRITE_W * scale * 2, h = SPRITE_H * scale * 2;
+    const carIdx = CARS.indexOf(ai.car);
+    if (carIdx < 0) return;
+    ctx.drawImage(SPRITE_SHEET, (carIdx%8)*SPRITE_W, Math.floor(carIdx/8)*8*SPRITE_H, SPRITE_W, SPRITE_H, screenX-w/2, screenY-h, w, h);
+  });
+}
+
+// ─── BACKGROUND RENDERING ────────────────────────────────────────────────────
+function drawBackground(track) {
+  const t = G.animT;
+  // Sky gradient
+  const skyG = bgCtx.createLinearGradient(0, 0, 0, H*0.55);
+  if (track.id === 'tokyo') {
+    skyG.addColorStop(0,'#050510'); skyG.addColorStop(1,'#0a0a20');
+  } else if (track.id === 'alpine') {
+    skyG.addColorStop(0,'#0a1020'); skyG.addColorStop(1,'#1a2a4a');
+  } else if (track.weather === 'rain') {
+    skyG.addColorStop(0,'#1a1a2a'); skyG.addColorStop(1,'#2a2a3a');
+  } else {
+    skyG.addColorStop(0,'#1C69D4'); skyG.addColorStop(1,'#87CEEB');
+  }
+  bgCtx.fillStyle = skyG; bgCtx.fillRect(0, 0, W, H*0.55);
+
+  // Mountains / city silhouette (parallax layer 2)
+  const pOffset = (cameraPos * 0.05) % W;
+  bgCtx.fillStyle = track.id==='bmwwelt' ? '#1a1a3a' : (track.id==='tokyo'?'#0a0a1a':'#0a2210');
+  for (let i=-1; i<=2; i++) {
+    const ox = i*W - pOffset;
+    // Draw mountain/city silhouette
+    bgCtx.beginPath();
+    if (track.id==='bmwwelt'||track.id==='tokyo') {
+      // City buildings
+      for (let b=0; b<12; b++) { const bx=ox+b*85+10, bh=60+Math.sin(b*1.7)*40, bw=60+Math.cos(b)*15; bgCtx.rect(bx, H*0.55-bh, bw, bh); }
+    } else {
+      // Mountains
+      bgCtx.moveTo(ox, H*0.55); bgCtx.lineTo(ox+60, H*0.55-80); bgCtx.lineTo(ox+130, H*0.55-120); bgCtx.lineTo(ox+220, H*0.55-60); bgCtx.lineTo(ox+300, H*0.55-100); bgCtx.lineTo(ox+400, H*0.55-50); bgCtx.lineTo(ox+500, H*0.55-90); bgCtx.lineTo(ox+600, H*0.55-40); bgCtx.lineTo(ox+W, H*0.55);
+    }
+    bgCtx.closePath(); bgCtx.fill();
+  }
+
+  // Trackside trees/objects (parallax layer 3)
+  const p3Offset = (cameraPos * 0.15) % W;
+  bgCtx.fillStyle = track.id==='alpine'?'#C8DCFF':'#1a4a10';
+  for (let i=-1; i<=2; i++) {
+    const ox = i*W - p3Offset;
+    for (let t2=0; t2<8; t2++) {
+      const tx = ox + t2*130 + 20;
+      if (track.id==='alpine') {
+        // Snowy tree
+        bgCtx.beginPath(); bgCtx.moveTo(tx+12,H*0.55); bgCtx.lineTo(tx+25,H*0.55-50); bgCtx.lineTo(tx+38,H*0.55); bgCtx.fill();
+      } else {
+        // Normal tree
+        bgCtx.fillStyle='#1a5010'; bgCtx.beginPath(); bgCtx.arc(tx+12,H*0.55-30,20,0,Math.PI*2); bgCtx.fill();
+        bgCtx.fillStyle='#0d3008'; bgCtx.fillRect(tx+9,H*0.55-12,6,15);
+        bgCtx.fillStyle='#1a4a10';
+      }
+    }
+  }
+
+  // Tokyo: neon lights
+  if (track.id==='tokyo' && G.quality!=='LOW') {
+    const neons = ['#FF69B4','#00FFFF','#FF4500','#ADFF2F'];
+    for (let n=0; n<20; n++) {
+      const nx = ((n*173 + cameraPos*0.1) % W);
+      const ny = H*0.1 + (n%5)*30;
+      bgCtx.fillStyle = neons[n%neons.length];
+      bgCtx.globalAlpha = 0.6 + Math.sin(t*3+n)*0.3;
+      bgCtx.fillRect(nx, ny, 3+n%4, 8+n%6);
+      bgCtx.globalAlpha = 1;
+    }
+  }
+  // Night headlights
+  if (track.id==='tokyo') {
+    const lx = W/2, ly = H*0.65;
+    const rGrad = bgCtx.createRadialGradient(lx-30,ly,0,lx-30,ly,200);
+    rGrad.addColorStop(0,'rgba(255,255,200,0.3)'); rGrad.addColorStop(1,'rgba(0,0,0,0)');
+    bgCtx.fillStyle=rGrad; bgCtx.fillRect(0,0,W,H);
+    const rGrad2 = bgCtx.createRadialGradient(lx+30,ly,0,lx+30,ly,200);
+    rGrad2.addColorStop(0,'rgba(255,255,200,0.3)'); rGrad2.addColorStop(1,'rgba(0,0,0,0)');
+    bgCtx.fillStyle=rGrad2; bgCtx.fillRect(0,0,W,H);
+  }
+}
+
+// ─── HUD ─────────────────────────────────────────────────────────────────────
+function drawHUD() {
+  // Speedometer (bottom left, BMW kidney-grille inspired arc)
+  const kmh = Math.abs(PLAYER.speed) * 3.6;
+  const sx=90, sy=H-70, sr=60;
+  ctx.strokeStyle='#333'; ctx.lineWidth=8; ctx.lineCap='round';
+  ctx.beginPath(); ctx.arc(sx,sy,sr, Math.PI*0.75, Math.PI*2.25); ctx.stroke();
+  const speedAngle = Math.PI*0.75 + (kmh/300)*Math.PI*1.5;
+  const spG = ctx.createLinearGradient(sx-sr,sy,sx+sr,sy);
+  spG.addColorStop(0,BMW_BLUE); spG.addColorStop(0.7,'#00BFFF'); spG.addColorStop(1,'#FF4444');
+  ctx.strokeStyle=spG; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.arc(sx,sy,sr, Math.PI*0.75, speedAngle); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font='bold 18px monospace'; ctx.textAlign='center';
+  ctx.fillText(Math.round(kmh), sx, sy+6);
+  ctx.font='9px monospace'; ctx.fillText('km/h', sx, sy+20);
+  // Gear
+  ctx.font='bold 14px monospace'; ctx.fillStyle=BMW_BLUE;
+  ctx.fillText('G'+PLAYER.gear, sx, sy-sr+10);
+
+  // Position / Lap / Time (top center)
+  ctx.textAlign='center'; ctx.font='bold 14px monospace'; ctx.fillStyle='rgba(0,0,0,0.5)';
+  ctx.fillRect(W/2-120, 4, 240, 40);
+  ctx.fillStyle='#fff';
+  ctx.font='bold 16px monospace';
+  const mins = Math.floor(PLAYER.lapTime/60); const secs = (PLAYER.lapTime%60).toFixed(2).padStart(5,'0');
+  ctx.fillText(`LAP ${PLAYER.lapCount+1}/${G.selectedTrack.laps}  |  P${PLAYER.position}/9`, W/2, 18);
+  ctx.font='12px monospace'; ctx.fillStyle=BMW_BLUE;
+  ctx.fillText(`${mins}:${secs}`, W/2, 36);
+
+  // Drift score (bottom right)
+  if (G.mode==='drift' || PLAYER.drifting) {
+    ctx.textAlign='right'; ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fillRect(W-210, H-90, 205, 85);
+    ctx.fillStyle=GOLD; ctx.font='bold 28px monospace';
+    ctx.fillText(Math.round(PLAYER.driftScore).toLocaleString(), W-10, H-55);
+    ctx.fillStyle='#fff'; ctx.font='bold 16px monospace';
+    ctx.fillText(`x${PLAYER.combo} COMBO`, W-10, H-28);
+    if (PLAYER.drifting) {
+      ctx.fillStyle=M_RED; ctx.font='14px monospace';
+      ctx.fillText(`DRIFT ${Math.round(PLAYER.driftAngle)}°`, W-10, H-10);
+    }
+  }
+
+  // Mini-map (top right)
+  drawMiniMap();
+
+  // Touch controls
+  if (TOUCH.active !== undefined && navigator.maxTouchPoints > 0) drawTouchControls();
+
+  // Weather overlay
+  drawWeatherHUD();
+}
+
+function drawMiniMap() {
+  const mx=W-80, my=50, mr=35;
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.arc(mx,my,mr+3,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=BMW_BLUE; ctx.lineWidth=1.5;
+  // Draw track outline
+  ctx.beginPath();
+  trackSegments.forEach((seg,i) => {
+    const a = (seg.z / trackLength) * Math.PI * 2 - Math.PI/2;
+    const r = mr * (0.6 + seg.curve*0.1);
+    const px = mx + Math.cos(a)*r, py = my + Math.sin(a)*r;
+    if (i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  });
+  ctx.closePath(); ctx.stroke();
+  // Player dot
+  const pa = (PLAYER.z / trackLength) * Math.PI * 2 - Math.PI/2;
+  ctx.fillStyle=BMW_BLUE;
+  ctx.beginPath(); ctx.arc(mx+Math.cos(pa)*mr*0.8, my+Math.sin(pa)*mr*0.8, 4,0,Math.PI*2); ctx.fill();
+  // AI dots
+  AI.forEach(ai => {
+    const aa = (ai.z / trackLength) * Math.PI * 2 - Math.PI/2;
+    ctx.fillStyle='#f55'; ctx.beginPath(); ctx.arc(mx+Math.cos(aa)*mr*0.8, my+Math.sin(aa)*mr*0.8, 2.5,0,Math.PI*2); ctx.fill();
+  });
+}
+
+function drawTouchControls() {
+  // Joystick
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(touchJoy.cx, touchJoy.cy, touchJoy.r, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle=BMW_BLUE; ctx.beginPath(); ctx.arc(touchJoy.cx + touchJoy.dx*touchJoy.r*0.5, touchJoy.cy + touchJoy.dy*touchJoy.r*0.5, touchJoy.r*0.35, 0, Math.PI*2); ctx.fill();
+  // Drift button
+  ctx.fillStyle = TOUCH.drift ? M_RED : '#cc4444';
+  ctx.beginPath(); ctx.arc(touchDrift.cx, touchDrift.cy, touchDrift.r, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha=1; ctx.fillStyle='#fff'; ctx.font='bold 12px monospace'; ctx.textAlign='center';
+  ctx.fillText('DRIFT', touchDrift.cx, touchDrift.cy+4);
+}
+
+function drawWeatherHUD() {
+  const weather = G.selectedTrack.weather;
+  if (weather === 'rain' || weather === 'snow') {
+    // Rain/snow particles
+    ctx.strokeStyle = weather==='snow' ? 'rgba(220,240,255,0.8)' : 'rgba(150,180,220,0.6)';
+    ctx.lineWidth = weather==='snow' ? 1.5 : 1;
+    rainPool.forEach(p => {
+      if (!p.active) return;
+      ctx.beginPath(); ctx.moveTo(p.x, p.y);
+      const angle2 = weather==='snow' ? 1.4 : 1.2;
+      ctx.lineTo(p.x + p.len*Math.cos(angle2), p.y + p.len*Math.sin(angle2)); ctx.stroke();
+    });
+    // Fog overlay for ice/snow
+    if (G.selectedTrack.terrainType==='ice' || weather==='snow') {
+      const fog = ctx.createLinearGradient(0,0,0,H);
+      fog.addColorStop(0,'rgba(200,220,255,0.3)'); fog.addColorStop(1,'rgba(200,220,255,0.0)');
+      ctx.fillStyle=fog; ctx.fillRect(0,0,W,H);
+    }
+  }
+  // Heat haze (Dubai)
+  if (G.selectedTrack.id==='dubai' && G.quality==='HIGH') {
+    ctx.fillStyle='rgba(255,220,100,0.04)'; ctx.fillRect(0,H*0.4,W,H*0.2);
+  }
+}
+
+// ─── SMOKE PARTICLE DRAW ─────────────────────────────────────────────────────
+function drawParticles() {
+  smokePool.forEach(p => {
+    if (!p.active) return;
+    const alpha = p.life / p.maxLife;
+    ctx.globalAlpha = alpha * 0.5;
+    ctx.fillStyle = p.col;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ─── SKID MARKS ──────────────────────────────────────────────────────────────
+let skidMarks = [];
+function updateSkidMarks() {
+  if (PLAYER.drifting && G.quality !== 'LOW') {
+    skidMarks.push({ x: W/2 + PLAYER.x*0.2, y: H*0.74, alpha:1 });
+    if (skidMarks.length > 40) skidMarks.shift();
+  }
+  skidMarks.forEach(s => { s.alpha *= 0.995; });
+  skidMarks = skidMarks.filter(s => s.alpha > 0.05);
+}
+function drawSkidMarks() {
+  skidMarks.forEach(s => {
+    ctx.globalAlpha = s.alpha * 0.5;
+    ctx.fillStyle = '#111';
+    ctx.fillRect(s.x - 6, s.y, 12, 4);
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ─── SCREEN RENDERERS ────────────────────────────────────────────────────────
+
+function drawSplash() {
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
+  // BMW Circle logo
+  const cx2=W/2, cy2=H/2-40, r=80;
+  ctx.strokeStyle=BMW_BLUE; ctx.lineWidth=6;
+  ctx.beginPath(); ctx.arc(cx2,cy2,r,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx2,cy2,r,0,Math.PI*2); ctx.clip(); // No clip needed
+  const quads=[['#1C69D4',[-1,-1]],['#FFF',[1,-1]],['#FFF',[-1,1]],['#1C69D4',[1,1]]];
+  quads.forEach(([col,[sx,sy]])=>{
+    ctx.fillStyle=col; ctx.beginPath(); ctx.arc(cx2,cy2,r,0,Math.PI*2); ctx.rect(cx2+sx*r,cy2+sy*r,-sx*r,-sy*r); ctx.fill();
+  });
+  // Outer ring
+  ctx.strokeStyle='#888'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(cx2,cy2,r+4,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle='#333'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(cx2-r,cy2); ctx.lineTo(cx2+r,cy2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx2,cy2-r); ctx.lineTo(cx2,cy2+r); ctx.stroke();
+
+  // Title
+  ctx.textAlign='center';
+  ctx.font='bold 42px monospace'; ctx.fillStyle='#fff';
+  ctx.fillText('BMW RACING', W/2, H/2+70);
+  ctx.font='16px monospace'; ctx.fillStyle=BMW_BLUE;
+  ctx.fillText('ULTIMATE EDITION', W/2, H/2+95);
+
+  // Animated car silhouette
+  const carX = W/2 + Math.sin(G.animT*0.5)*30;
+  const carIdx = CARS.indexOf(G.selectedCar); const ci = carIdx>=0?carIdx:1;
+  ctx.drawImage(SPRITE_SHEET, (ci%8)*SPRITE_W, Math.floor(ci/8)*8*SPRITE_H, SPRITE_W, SPRITE_H, carX-40, H/2+110, 80, 40);
+
+  ctx.font='14px monospace'; ctx.fillStyle = (Math.floor(G.animT*2)%2===0)?'#fff':'#aaa';
+  ctx.fillText('CLICK OR PRESS ANY KEY TO START', W/2, H-30);
+}
+
+function drawMenu() {
+  ctx.fillStyle=BMW_DARK; ctx.fillRect(0,0,W,H);
+  // Gradient bg
+  const bg = ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,W*0.7);
+  bg.addColorStop(0,'#1a2050'); bg.addColorStop(1,'#050510');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  // Grid lines
+  ctx.strokeStyle='rgba(28,105,212,0.1)'; ctx.lineWidth=1;
+  for (let i=0;i<W;i+=60){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,H);ctx.stroke();}
+  for (let i=0;i<H;i+=60){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(W,i);ctx.stroke();}
+  // Title
+  ctx.textAlign='center'; ctx.font='bold 36px monospace'; ctx.fillStyle='#fff'; ctx.fillText('BMW RACING', W/2, 80);
+  ctx.font='13px monospace'; ctx.fillStyle=BMW_BLUE; ctx.fillText(`LEVEL ${SAVE.level}  |  XP: ${SAVE.xp}/${SAVE.xpToNext}`, W/2, 105);
+
+  const items=['QUICK RACE','CAR GARAGE','LEADERBOARD','SETTINGS'];
+  items.forEach((item, i) => {
+    const y = H/2 - 60 + i*65;
+    const sel = G.menuSel === i;
+    ctx.fillStyle = sel ? BMW_BLUE : 'rgba(255,255,255,0.05)';
+    ctx.beginPath(); ctx.roundRect(W/2-180, y-22, 360, 48, 8); ctx.fill();
+    if (sel) {
+      ctx.strokeStyle=BMW_BLUE; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.roundRect(W/2-180, y-22, 360, 48, 8); ctx.stroke();
+    }
+    ctx.fillStyle = sel?'#fff':'#ccc'; ctx.font=`bold ${sel?20:18}px monospace`; ctx.textAlign='center';
+    ctx.fillText(item, W/2, y+8);
+  });
+  ctx.font='11px monospace'; ctx.fillStyle='#666'; ctx.textAlign='center';
+  ctx.fillText('↑↓ NAVIGATE  |  ENTER SELECT  |  CLICK', W/2, H-20);
+}
+
+function handleMenuKey(code) {
+  if (G.screen === 'splash') {
+    if (['Enter','Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyS','KeyA','KeyD'].includes(code)) {
+      initAudio(); G.screen = 'menu'; playSound('click');
+    }
+    return;
+  }
+  if (G.screen === 'menu') {
+    if (code==='ArrowUp'||code==='KeyW') { G.menuSel=(G.menuSel-1+4)%4; playSound('click'); }
+    if (code==='ArrowDown'||code==='KeyS') { G.menuSel=(G.menuSel+1)%4; playSound('click'); }
+    if (code==='Enter') { handleMenuSelect(G.menuSel); playSound('click'); }
+  }
+  if (G.screen==='carSelect') {
+    if (code==='ArrowLeft'||code==='KeyA') { G.carSelIdx=(G.carSelIdx-1+CARS.length)%CARS.length; playSound('click'); }
+    if (code==='ArrowRight'||code==='KeyD') { G.carSelIdx=(G.carSelIdx+1)%CARS.length; playSound('click'); }
+    if (code==='Enter') { G.selectedCar=CARS[G.carSelIdx]; G.screen='trackSelect'; playSound('click'); }
+    if (code==='Escape') { G.screen='menu'; playSound('click'); }
+  }
+  if (G.screen==='trackSelect') {
+    if (code==='ArrowLeft'||code==='KeyA') { G.trackSelIdx=(G.trackSelIdx-1+TRACKS.length)%TRACKS.length; playSound('click'); }
+    if (code==='ArrowRight'||code==='KeyD') { G.trackSelIdx=(G.trackSelIdx+1)%TRACKS.length; playSound('click'); }
+    if (code==='Enter') { G.selectedTrack=TRACKS[G.trackSelIdx]; G.screen='modeSelect'; playSound('click'); }
+    if (code==='Escape') { G.screen='carSelect'; playSound('click'); }
+  }
+  if (G.screen==='modeSelect') {
+    const modes=['race','drift','trial','roam'];
+    if (code==='ArrowUp'||code==='KeyW') { G.menuSel=(G.menuSel-1+4)%4; playSound('click'); }
+    if (code==='ArrowDown'||code==='KeyS') { G.menuSel=(G.menuSel+1)%4; playSound('click'); }
+    if (code==='Enter') { G.mode=modes[G.menuSel]; startGame(); playSound('click'); }
+    if (code==='Escape') { G.screen='trackSelect'; playSound('click'); }
+  }
+  if (G.screen==='results') {
+    if (code==='Enter'||code==='Escape') { G.screen='menu'; }
+  }
+  if (G.screen==='garage') {
+    if (code==='Escape') { G.screen='menu'; }
+  }
+  if (G.screen==='leaderboard') {
+    if (code==='Escape') { G.screen='menu'; }
+  }
+}
+
+function handleMenuSelect(idx) {
+  switch(idx) {
+    case 0: G.screen='carSelect'; G.carSelIdx=CARS.indexOf(G.selectedCar)||1; break;
+    case 1: G.screen='garage'; break;
+    case 2: G.screen='leaderboard'; break;
+    case 3: G.screen='settings'; break;
+  }
+}
+
+function handleCanvasClick(x, y) {
+  initAudio();
+  if (G.screen==='splash') { G.screen='menu'; playSound('click'); return; }
+  if (G.screen==='menu') {
+    const items=4;
+    for (let i=0;i<items;i++) {
+      const iy = H/2 - 60 + i*65;
+      if (x>W/2-180&&x<W/2+180&&y>iy-22&&y<iy+26) { handleMenuSelect(i); G.menuSel=i; playSound('click'); return; }
+    }
+  }
+  if (G.screen==='carSelect') {
+    if (x < W/2-100) { G.carSelIdx=(G.carSelIdx-1+CARS.length)%CARS.length; playSound('click'); }
+    else if (x > W/2+100) { G.carSelIdx=(G.carSelIdx+1)%CARS.length; playSound('click'); }
+    else if (y > H-80) { G.selectedCar=CARS[G.carSelIdx]; G.screen='trackSelect'; playSound('click'); }
+  }
+  if (G.screen==='trackSelect') {
+    if (x < W/2-100) { G.trackSelIdx=(G.trackSelIdx-1+TRACKS.length)%TRACKS.length; playSound('click'); }
+    else if (x > W/2+100) { G.trackSelIdx=(G.trackSelIdx+1)%TRACKS.length; playSound('click'); }
+    else if (y > H-80) { G.selectedTrack=TRACKS[G.trackSelIdx]; G.screen='modeSelect'; G.menuSel=0; playSound('click'); }
+  }
+  if (G.screen==='modeSelect') {
+    const modes=['race','drift','trial','roam'];
+    for (let i=0;i<modes.length;i++) {
+      const my = H/2-60+i*65;
+      if (x>W/2-180&&x<W/2+180&&y>my-22&&y<my+26) { G.mode=modes[i]; startGame(); playSound('click'); return; }
+    }
+  }
+  if (G.screen==='results'||G.screen==='leaderboard'||G.screen==='garage') { G.screen='menu'; playSound('click'); }
+  if (G.screen==='pause') {
+    if (y>H/2-20&&y<H/2+20&&x>W/2-100&&x<W/2+100) { G.screen=G.mode; }
+    if (y>H/2+40&&y<H/2+80&&x>W/2-100&&x<W/2+100) { G.screen='menu'; }
+  }
+  if (G.screen==='settings') {
+    if (y>H-60) { G.screen='menu'; playSound('click'); }
+    // SFX toggle
+    if (y>H/2-30&&y<H/2+10) { SAVE.settings.sfx=!SAVE.settings.sfx; masterGain&&(masterGain.gain.value=SAVE.settings.sfx?0.7:0); savePersist(); playSound('click'); }
+  }
+}
+
+canvas.addEventListener('click', e => {
+  const {x,y}=toGameCoords(e.clientX,e.clientY);
+  handleCanvasClick(x,y);
+});
+
+function startGame() {
+  buildTrack(G.selectedTrack);
+  resetPlayerCar();
+  if (G.mode==='race') initAI();
+  PLAYER.lapCount=0; PLAYER.lapTime=0; PLAYER.driftScore=0; PLAYER.combo=1;
+  PLAYER.wallHits=0; PLAYER.finished=false; PLAYER.position=1;
+  PLAYER.ghostFrames=[]; PLAYER.ghostIdx=0;
+  if (G.mode==='trial') {
+    const key=G.selectedCar.id+'_'+G.selectedTrack.id;
+    PLAYER.bestLap = SAVE.bestLaps[key]||Infinity;
+  }
+  G.screen = G.mode;
+}
+
+// ─── CAR SELECT SCREEN ───────────────────────────────────────────────────────
+function drawCarSelect() {
+  ctx.fillStyle=CARBON; ctx.fillRect(0,0,W,H);
+  const g2=ctx.createLinearGradient(0,0,W,0);
+  g2.addColorStop(0,'#0a0a1a'); g2.addColorStop(0.5,'#10102a'); g2.addColorStop(1,'#0a0a1a');
+  ctx.fillStyle=g2; ctx.fillRect(0,0,W,H);
+
+  ctx.textAlign='center'; ctx.font='bold 28px monospace'; ctx.fillStyle='#fff';
+  ctx.fillText('SELECT YOUR BMW', W/2, 45);
+  ctx.font='13px monospace'; ctx.fillStyle=BMW_BLUE;
+  ctx.fillText('← → BROWSE  |  ENTER / TAP CENTER TO CONFIRM', W/2, 68);
+
+  const car = CARS[G.carSelIdx];
+  const locked = !isCarUnlocked(car);
+
+  // Car sprite large
+  const ci = G.carSelIdx;
+  const sx2=((ci%8)*SPRITE_W), sy2=(Math.floor(ci/8)*8*SPRITE_H);
+  const dw=240,dh=120;
+  ctx.drawImage(SPRITE_SHEET, sx2,sy2,SPRITE_W,SPRITE_H, W/2-dw/2, H/2-dh/2-30, dw,dh);
+  if (locked) {
+    ctx.globalAlpha=0.5; ctx.fillStyle='#000'; ctx.fillRect(W/2-dw/2,H/2-dh/2-30,dw,dh); ctx.globalAlpha=1;
+    ctx.fillStyle='#fff'; ctx.font='bold 16px monospace'; ctx.textAlign='center';
+    ctx.fillText(`🔒 LEVEL ${car.unlockLevel}`, W/2, H/2+10);
+  }
+
+  // Car info
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.roundRect(W/2-220,H/2+80,440,120,8); ctx.fill();
+  ctx.textAlign='center'; ctx.fillStyle='#fff'; ctx.font='bold 18px monospace';
+  ctx.fillText(car.name, W/2, H/2+105);
+  ctx.font='12px monospace'; ctx.fillStyle='#aaa';
+  ctx.fillText(`${car.series.toUpperCase()} | ${car.year} | ${car.description}`, W/2, H/2+123);
+
+  // Stats bars
+  const stats=[['SPEED',car.topSpeed/350],['ACCEL',car.acceleration/10],['HANDLE',car.handling/10],['DRIFT',car.driftFactor]];
+  stats.forEach(([label,val],i) => {
+    const bx=W/2-180, by=H/2+135+i*18, bw=200, bh=10;
+    ctx.fillStyle='#333'; ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,3); ctx.fill();
+    const col=i===3?M_RED:BMW_BLUE;
+    ctx.fillStyle=col; ctx.beginPath(); ctx.roundRect(bx,by,bw*val,bh,3); ctx.fill();
+    ctx.fillStyle='#ccc'; ctx.font='10px monospace'; ctx.textAlign='right';
+    ctx.fillText(label, bx-5, by+9);
+  });
+
+  // Arrows
+  ctx.font='28px monospace'; ctx.fillStyle='#fff'; ctx.textAlign='center';
+  ctx.fillText('◀', W/2-200, H/2);
+  ctx.fillText('▶', W/2+200, H/2);
+
+  // Progress indicator
+  ctx.font='12px monospace'; ctx.fillStyle='#555'; ctx.textAlign='center';
+  ctx.fillText(`${G.carSelIdx+1} / ${CARS.length}`, W/2, H-40);
+
+  // Back button
+  ctx.fillStyle='rgba(100,100,100,0.3)'; ctx.beginPath(); ctx.roundRect(20,H-50,100,36,6); ctx.fill();
+  ctx.fillStyle='#aaa'; ctx.font='13px monospace'; ctx.textAlign='center'; ctx.fillText('◀ BACK', 70, H-27);
+}
+
+// ─── TRACK SELECT SCREEN ─────────────────────────────────────────────────────
+function drawTrackSelect() {
+  ctx.fillStyle=CARBON; ctx.fillRect(0,0,W,H);
+  const track = TRACKS[G.trackSelIdx];
+  // bg color from track
+  const g3=ctx.createLinearGradient(0,0,0,H);
+  g3.addColorStop(0, track.bgColor); g3.addColorStop(1,'#000');
+  ctx.fillStyle=g3; ctx.fillRect(0,0,W,H);
+
+  ctx.textAlign='center'; ctx.font='bold 28px monospace'; ctx.fillStyle='#fff';
+  ctx.fillText('SELECT TRACK', W/2, 45);
+  ctx.font='13px monospace'; ctx.fillStyle=track.accentColor;
+  ctx.fillText('← → BROWSE  |  ENTER / TAP CENTER TO CONFIRM', W/2, 68);
+
+  // Minimap
+  const mx=W/2, my=H/2-30, mr=80;
+  ctx.strokeStyle=track.accentColor; ctx.lineWidth=2;
+  ctx.beginPath();
+  // Draw stylized track outline
+  for (let i=0;i<trackSegments.length;i+=4) {
+    const seg=trackSegments[i];
+    const a=(seg.z/trackLength)*Math.PI*2-Math.PI/2;
+    const r2=mr*(0.7+seg.curve*0.08);
+    const px=mx+Math.cos(a)*r2, py=my+Math.sin(a)*r2;
+    if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.closePath(); ctx.stroke();
+
+  // Track info
+  const locked=!isTrackUnlocked(track);
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.roundRect(W/2-240,H/2+80,480,130,8); ctx.fill();
+  ctx.textAlign='center'; ctx.fillStyle=locked?'#888':'#fff'; ctx.font='bold 20px monospace';
+  ctx.fillText((locked?'🔒 ':'')+track.name, W/2, H/2+108);
+  ctx.font='13px monospace'; ctx.fillStyle='#aaa';
+  ctx.fillText(`${track.location.toUpperCase()} | ${track.laps} LAPS | ${track.terrainType.toUpperCase()}`, W/2, H/2+130);
+  ctx.fillText(track.description, W/2, H/2+150);
+  // Difficulty dots
+  ctx.textAlign='left'; ctx.fillStyle='#666'; ctx.font='11px monospace';
+  ctx.fillText('DIFFICULTY', W/2-220, H/2+175);
+  for (let i=0;i<10;i++) {
+    ctx.fillStyle = i<track.difficulty ? M_RED : '#333';
+    ctx.beginPath(); ctx.arc(W/2-100+i*18, H/2+172, 5, 0, Math.PI*2); ctx.fill();
+  }
+  // Best time
+  const key=G.selectedCar.id+'_'+track.id;
+  const bt=SAVE.bestLaps[key];
+  if(bt){
+    const m=Math.floor(bt/60),s=(bt%60).toFixed(2).padStart(5,'0');
+    ctx.fillStyle=GOLD; ctx.font='11px monospace'; ctx.textAlign='right';
+    ctx.fillText(`BEST: ${m}:${s}`, W/2+220, H/2+175);
+  }
+  // Arrows
+  ctx.font='28px monospace'; ctx.fillStyle='#fff'; ctx.textAlign='center';
+  ctx.fillText('◀', W/2-240, H/2+10); ctx.fillText('▶', W/2+240, H/2+10);
+  // Counter
+  ctx.font='12px monospace'; ctx.fillStyle='#555';
+  ctx.fillText(`${G.trackSelIdx+1} / ${TRACKS.length}`, W/2, H-40);
+}
+
+// ─── MODE SELECT SCREEN ──────────────────────────────────────────────────────
+function drawModeSelect() {
+  ctx.fillStyle=CARBON; ctx.fillRect(0,0,W,H);
+  ctx.textAlign='center'; ctx.font='bold 28px monospace'; ctx.fillStyle='#fff';
+  ctx.fillText('SELECT GAME MODE', W/2, 50);
+
+  const modes=[
+    { id:'race',  name:'RACE MODE',       icon:'🏁', desc:'8 AI opponents, 3 laps, podium finish' },
+    { id:'drift', name:'DRIFT ATTACK',    icon:'💨', desc:'Score points for sustained drifts' },
+    { id:'trial', name:'TIME TRIAL',      icon:'⏱', desc:'Solo hot lap, ghost car from best time' },
+    { id:'roam',  name:'FREE ROAM',       icon:'🗺', desc:'Open terrain map, explore all surfaces' },
+  ];
+  modes.forEach((m,i) => {
+    const y=H/2-75+i*65;
+    const sel=G.menuSel===i;
+    ctx.fillStyle = sel?BMW_BLUE:'rgba(255,255,255,0.07)';
+    ctx.beginPath(); ctx.roundRect(W/2-240,y-24,480,52,8); ctx.fill();
+    if(sel){ctx.strokeStyle=BMW_BLUE;ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(W/2-240,y-24,480,52,8);ctx.stroke();}
+    ctx.textAlign='left'; ctx.fillStyle='#fff'; ctx.font=`bold ${sel?18:16}px monospace`;
+    ctx.fillText(`${m.icon} ${m.name}`, W/2-220, y+2);
+    ctx.fillStyle='#888'; ctx.font='12px monospace'; ctx.fillText(m.desc, W/2-220, y+18);
+  });
+  ctx.font='11px monospace'; ctx.fillStyle='#555'; ctx.textAlign='center';
+  ctx.fillText('↑↓ SELECT  |  ENTER START  |  ESC BACK', W/2, H-20);
+}
+
+// ─── PAUSE SCREEN ────────────────────────────────────────────────────────────
+function drawPause() {
+  ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H);
+  ctx.textAlign='center'; ctx.font='bold 32px monospace'; ctx.fillStyle='#fff';
+  ctx.fillText('PAUSED', W/2, H/2-60);
+  [[`RESUME (ESC)`,H/2-10],[`MAIN MENU`,H/2+50]].forEach(([text,y]) => {
+    ctx.fillStyle='rgba(28,105,212,0.5)'; ctx.beginPath(); ctx.roundRect(W/2-100,y-26,200,40,6); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='16px monospace'; ctx.fillText(text, W/2, y);
+  });
+}
+
+// ─── RESULTS SCREEN ──────────────────────────────────────────────────────────
+function drawResults() {
+  ctx.fillStyle=CARBON; ctx.fillRect(0,0,W,H);
+  const bg4=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,W*0.6);
+  bg4.addColorStop(0,'#1a1a2e'); bg4.addColorStop(1,'#000');
+  ctx.fillStyle=bg4; ctx.fillRect(0,0,W,H);
+  ctx.textAlign='center';
+  const pos=PLAYER.position;
+  const posStr=pos===1?'1ST':pos===2?'2ND':pos===3?'3RD':`${pos}TH`;
+  const posCol=pos===1?GOLD:pos===2?'#C0C0C0':pos===3?'#CD7F32':'#888';
+  ctx.font='bold 72px monospace'; ctx.fillStyle=posCol;
+  ctx.fillText(posStr, W/2, H/2-30);
+  ctx.font='bold 22px monospace'; ctx.fillStyle='#fff';
+  ctx.fillText(`FINISHED ${posStr} PLACE`, W/2, H/2+30);
+  const bt=PLAYER.bestLap<Infinity?PLAYER.bestLap:null;
+  if(bt){const m=Math.floor(bt/60),s=(bt%60).toFixed(2).padStart(5,'0'); ctx.font='16px monospace'; ctx.fillStyle=BMW_BLUE; ctx.fillText(`BEST LAP: ${m}:${s}`, W/2, H/2+65);}
+  ctx.font='bold 18px monospace'; ctx.fillStyle=GOLD;
+  const xpTable={1:800,2:600,3:400,4:200,5:100,6:80,7:60,8:50,9:40};
+  ctx.fillText(`+${xpTable[pos]||40} XP`, W/2, H/2+95);
+  ctx.font='14px monospace'; ctx.fillStyle='#888';
+  ctx.fillText('PRESS ENTER OR CLICK TO CONTINUE', W/2, H-30);
+}
+
+// ─── GARAGE SCREEN ───────────────────────────────────────────────────────────
+const COLORS8 = ['#FFFFFF','#1C69D4','#E63946','#FFD700','#0D0D0D','#1A1A2E','#228B22','#8B0000'];
+const RIM_NAMES = ['STANDARD','M SPORT','FORGED','CARBON'];
+function drawGarage() {
+  ctx.fillStyle=CARBON; ctx.fillRect(0,0,W,H);
+  ctx.textAlign='center'; ctx.font='bold 26px monospace'; ctx.fillStyle='#fff';
+  ctx.fillText('GARAGE', W/2, 45);
+  ctx.font='13px monospace'; ctx.fillStyle=BMW_BLUE;
+  ctx.fillText(`LEVEL ${SAVE.level} — ${SAVE.unlockedCars.length}/${CARS.length} CARS UNLOCKED`, W/2, 68);
+
+  // Color picker
+  ctx.font='bold 14px monospace'; ctx.fillStyle='#aaa'; ctx.textAlign='left';
+  ctx.fillText('BODY COLOR:', 60, 110);
+  COLORS8.forEach((col,i) => {
+    const cx2=60+i*50, cy2=130;
+    ctx.fillStyle=col; ctx.beginPath(); ctx.arc(cx2,cy2,18,0,Math.PI*2); ctx.fill();
+    if(col===SAVE.customColor){ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx2,cy2,20,0,Math.PI*2);ctx.stroke();}
+  });
+
+  // Rim picker
+  ctx.fillStyle='#aaa'; ctx.font='bold 14px monospace'; ctx.textAlign='left';
+  ctx.fillText('RIM STYLE:', 60, 180);
+  RIM_NAMES.forEach((rim,i) => {
+    const sel=SAVE.rimStyle===i;
+    ctx.fillStyle=sel?BMW_BLUE:'rgba(255,255,255,0.1)';
+    ctx.beginPath(); ctx.roundRect(60+i*120,195,110,36,6); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='12px monospace'; ctx.textAlign='center';
+    ctx.fillText(rim, 60+i*120+55, 219);
+  });
+
+  // Car list
+  ctx.font='bold 14px monospace'; ctx.fillStyle='#aaa'; ctx.textAlign='left';
+  ctx.fillText('YOUR FLEET:', 60, 260);
+  const unlocked=CARS.filter(c=>SAVE.unlockedCars.includes(c.id)||c.unlockLevel===0);
+  unlocked.slice(0,8).forEach((car,i) => {
+    const cx3=(i%4)*220+80, cy3=280+Math.floor(i/4)*80;
+    ctx.fillStyle='rgba(255,255,255,0.06)'; ctx.beginPath(); ctx.roundRect(cx3-10,cy3-10,200,65,6); ctx.fill();
+    const ci2=CARS.indexOf(car);
+    ctx.drawImage(SPRITE_SHEET,(ci2%8)*SPRITE_W,Math.floor(ci2/8)*8*SPRITE_H,SPRITE_W,SPRITE_H,cx3,cy3-5,80,40);
+    ctx.fillStyle='#ddd'; ctx.font='11px monospace'; ctx.textAlign='left';
+    ctx.fillText(car.name, cx3+90, cy3+15);
+    ctx.fillStyle='#777'; ctx.font='10px monospace';
+    ctx.fillText(car.series, cx3+90, cy3+30);
+  });
+
+  ctx.font='13px monospace'; ctx.fillStyle='#555'; ctx.textAlign='center';
+  ctx.fillText('ESC / CLICK TO RETURN', W/2, H-20);
+}
+
+// ─── LEADERBOARD SCREEN ──────────────────────────────────────────────────────
+function drawLeaderboard() {
+  ctx.fillStyle=CARBON; ctx.fillRect(0,0,W,H);
+  ctx.textAlign='center'; ctx.font='bold 26px monospace'; ctx.fillStyle='#fff';
+  ctx.fillText('LEADERBOARD & ACHIEVEMENTS', W/2, 45);
+
+  // Best laps
+  ctx.font='bold 14px monospace'; ctx.fillStyle=BMW_BLUE; ctx.textAlign='left';
+  ctx.fillText('BEST LAPS:', 50, 80);
+  const laps=Object.entries(SAVE.bestLaps).slice(0,8);
+  if(laps.length===0){ctx.fillStyle='#555';ctx.font='13px monospace';ctx.fillText('No lap times recorded yet.', 50, 105);}
+  laps.forEach(([key,time],i) => {
+    const [carId,trackId]=key.split('_');
+    const car=CARS.find(c=>c.id===carId), trk=TRACKS.find(t=>t.id===trackId);
+    const m=Math.floor(time/60),s=(time%60).toFixed(2).padStart(5,'0');
+    const y=95+i*30;
+    ctx.fillStyle=i===0?GOLD:'#ccc'; ctx.font='13px monospace';
+    ctx.fillText(`${car?.name||carId} @ ${trk?.name||trackId}: ${m}:${s}`, 50, y);
+  });
+
+  // Drift high scores
+  ctx.font='bold 14px monospace'; ctx.fillStyle=M_RED; ctx.textAlign='left';
+  ctx.fillText('DRIFT HIGH SCORES:', 50, 350);
+  const drifts=Object.entries(SAVE.driftHighScores).slice(0,5);
+  if(drifts.length===0){ctx.fillStyle='#555';ctx.font='13px monospace';ctx.fillText('No drift scores yet.', 50, 375);}
+  drifts.forEach(([carId,score],i) => {
+    const car=CARS.find(c=>c.id===carId);
+    ctx.fillStyle=i===0?GOLD:'#ccc'; ctx.font='13px monospace'; ctx.textAlign='left';
+    ctx.fillText(`${car?.name||carId}: ${Math.round(score).toLocaleString()} pts`, 50, 370+i*28);
+  });
+
+  // Achievements
+  ctx.font='bold 14px monospace'; ctx.fillStyle=GOLD; ctx.textAlign='left';
+  ctx.fillText('ACHIEVEMENTS:', 480, 80);
+  ACHIEVEMENTS.forEach((ach,i) => {
+    const unlocked=SAVE.achievements.includes(ach.id);
+    const y=100+i*36;
+    ctx.fillStyle=unlocked?'rgba(255,215,0,0.15)':'rgba(255,255,255,0.05)';
+    ctx.beginPath(); ctx.roundRect(478,y-14,440,28,4); ctx.fill();
+    ctx.fillStyle=unlocked?GOLD:'#555'; ctx.font='12px monospace'; ctx.textAlign='left';
+    ctx.fillText((unlocked?'✓ ':'○ ')+ach.name, 490, y+2);
+    ctx.fillStyle='#666'; ctx.font='10px monospace';
+    ctx.fillText(`+${ach.xpReward} XP`, 870, y+2);
+  });
+
+  ctx.font='13px monospace'; ctx.fillStyle='#555'; ctx.textAlign='center';
+  ctx.fillText('ESC / CLICK TO RETURN', W/2, H-20);
+}
+
+// ─── SETTINGS SCREEN ─────────────────────────────────────────────────────────
+function drawSettings() {
+  ctx.fillStyle=CARBON; ctx.fillRect(0,0,W,H);
+  ctx.textAlign='center'; ctx.font='bold 26px monospace'; ctx.fillStyle='#fff';
+  ctx.fillText('SETTINGS', W/2, 50);
+
+  const settings=[
+    { label:'SOUND EFFECTS', value:SAVE.settings.sfx?'ON':'OFF', on:SAVE.settings.sfx },
+    { label:'MUSIC', value:SAVE.settings.music?'ON':'OFF', on:SAVE.settings.music },
+    { label:'QUALITY', value:G.quality, on:true },
+  ];
+  settings.forEach((s,i) => {
+    const y=H/2-60+i*80;
+    ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.beginPath(); ctx.roundRect(W/2-200,y-24,400,50,8); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='bold 16px monospace'; ctx.textAlign='center'; ctx.fillText(s.label, W/2, y);
+    ctx.fillStyle=s.on?BMW_BLUE:'#555'; ctx.font='20px monospace'; ctx.fillText(s.value, W/2, y+22);
+  });
+  ctx.font='13px monospace'; ctx.fillStyle='#555'; ctx.textAlign='center';
+  ctx.fillText('CLICK OPTION TO TOGGLE  |  ESC TO RETURN', W/2, H-20);
+}
+
+// ─── ACHIEVEMENT CHECKER ─────────────────────────────────────────────────────
+function checkAchievements() {
+  function unlock(id) { if(!SAVE.achievements.includes(id)){SAVE.achievements.push(id);const a=ACHIEVEMENTS.find(x=>x.id===id);if(a)addXP(a.xpReward);} }
+  if(!SAVE.achievements.includes('first_race')) unlock('first_race');
+  if(PLAYER.position===1) unlock('first_place');
+  if(PLAYER.bestLap<120) unlock('sub2min');
+  if(PLAYER.combo>=8) unlock('drift_master');
+  if(PLAYER.wallHits===0) unlock('clean_lap');
+  if(SAVE.unlockedCars.length===CARS.length) unlock('all_bmw');
+  if(G.selectedCar.series==='Vintage'&&PLAYER.position===1) unlock('vintage_win');
+  if(G.selectedCar.series==='Electric'&&PLAYER.position===1) unlock('ev_win');
+  if(SAVE.level>=10) unlock('level10');
+  savePersist();
+}
+
+// ─── PAGE VISIBILITY ─────────────────────────────────────────────────────────
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if(G.screen==='race'||G.screen==='drift'||G.screen==='trial'||G.screen==='roam') G.screen='pause'; }
+});
+
+// ─── MAIN GAME LOOP ──────────────────────────────────────────────────────────
+function gameLoop(timestamp) {
+  if (!G.lastTime) G.lastTime = timestamp;
+  G.dt = Math.min((timestamp - G.lastTime) / 1000, 0.05); // cap at 50ms
+  G.lastTime = timestamp;
+  G.animT += G.dt;
+  G.frame++;
+
+  updateGamepad();
+  ctx.clearRect(0, 0, W, H);
+
+  switch (G.screen) {
+    case 'splash':
+      G.splashTimer += G.dt;
+      drawSplash();
+      break;
+    case 'menu':
+      drawMenu();
+      break;
+    case 'carSelect':
+      buildTrack(TRACKS[G.trackSelIdx]||TRACKS[0]);
+      drawCarSelect();
+      break;
+    case 'trackSelect':
+      buildTrack(TRACKS[G.trackSelIdx]);
+      drawTrackSelect();
+      break;
+    case 'modeSelect':
+      drawModeSelect();
+      break;
+    case 'race':
+    case 'drift':
+    case 'trial':
+    case 'roam':
+      if (G.quality === 'LOW') {
+        ctx.fillStyle = G.selectedTrack.bgColor; ctx.fillRect(0,0,W,H);
+      } else {
+        drawBackground(G.selectedTrack);
+        ctx.drawImage(bgBuf, 0, 0);
+      }
+      drawRoad();
+      ctx.drawImage(roadBuf, 0, 0);
+      drawSkidMarks();
+      if (G.mode==='race') { drawAICars(); }
+      drawPlayerCar();
+      updateParticles(G.dt);
+      drawParticles();
+      updateSkidMarks();
+      updatePlayer(G.dt);
+      if (G.mode==='race') updateAI(G.dt);
+      if (G.mode==='drift' && PLAYER.lapCount>0) {
+        const key=G.selectedCar.id;
+        if (!SAVE.driftHighScores[key]||PLAYER.driftScore>SAVE.driftHighScores[key]) { SAVE.driftHighScores[key]=PLAYER.driftScore; savePersist(); }
+      }
+      drawHUD();
+      break;
+    case 'pause':
+      drawPause();
+      break;
+    case 'results':
+      drawResults();
+      break;
+    case 'garage':
+      drawGarage();
+      break;
+    case 'leaderboard':
+      drawLeaderboard();
+      break;
+    case 'settings':
+      drawSettings();
+      break;
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ─── BOOTSTRAP ───────────────────────────────────────────────────────────────
+buildSpriteSheet();
+buildTrack(TRACKS[1]);
+benchmarkQuality(() => {
+  requestAnimationFrame(gameLoop);
+});
+
+</script>
+</body>
+</html>
