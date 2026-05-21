@@ -146,16 +146,20 @@ buildTrack(TRACKS[0]);
 
 function projectSegs(){
   const si=Math.floor((camZ%trackLen)/SEG)%segs.length;
-  let x=0,dx=0;
+  // First pass: perspective scale, screen y, road width
   for(let n=0;n<DRAW;n++){
-    const idx=(si+n)%segs.length;
-    const s=segs[idx];
-    const rz=(n+0.5)*SEG;
-    s.sc=CAM_D/rz;
-    s.px=(W/2)*(1+s.sc*(-PL.x/(ROAD_W*0.5)+x/W));
-    s.py=(H*0.52)*(1-s.sc*(CAM_H/CAM_H-s.hill/CAM_H));
-    s.pw=s.sc*ROAD_W*W/2;
-    x+=dx; dx+=s.curve*0.0007;
+    const s=segs[(si+n)%segs.length];
+    const depth=(n+1)*SEG;
+    s.sc=CAM_D/depth;
+    s.py=Math.round(H/2*(1+s.sc*CAM_H));
+    s.pw=s.sc*ROAD_W*(W/2);
+  }
+  // Second pass far→near: accumulate curve x (near segments get more offset)
+  let cx=0;
+  for(let n=DRAW-1;n>=0;n--){
+    const s=segs[(si+n)%segs.length];
+    s.px=W/2+cx-PL.x*s.sc*(W/600);
+    cx+=s.curve*0.28;
   }
   return si;
 }
@@ -163,28 +167,30 @@ function projectSegs(){
 function renderRoad(){
   const si=projectSegs();
   let maxY=H;
-  for(let n=DRAW-1;n>=0;n--){
-    const idx=(si+n)%segs.length;
-    const ni=(si+n+1)%segs.length;
-    const s=segs[idx], nx=segs[ni];
-    const y1=Math.max(0,s.py<0?0:s.py), y2=Math.min(maxY,nx.py);
-    if(y2<=y1||y1>H) continue;
+  // near→far: each strip from s.py (top) to maxY (bottom)
+  for(let n=0;n<DRAW;n++){
+    const s=segs[(si+n)%segs.length];
+    const py=Math.min(H,s.py);
+    if(py>=maxY||py<0) continue;
+    const prev=n>0?segs[(si+n-1)%segs.length]:null;
+    const px2=prev?prev.px:s.px, pw2=prev?prev.pw:s.pw*1.4;
     // Grass
-    ctx.fillStyle=s.grass; ctx.fillRect(0,y1,W,y2-y1);
-    // Road
-    trap(s.px-s.pw,y1,s.pw*2, nx.px-nx.pw,y2,nx.pw*2, s.road);
+    ctx.fillStyle=s.grass; ctx.fillRect(0,py,W,maxY-py);
+    // Road surface
+    trap(s.px-s.pw,py,s.pw*2, px2-pw2,maxY,pw2*2, s.road);
     // Rumble strips
-    const rw=s.pw*0.09,nrw=nx.pw*0.09;
-    trap(s.px-s.pw,y1,rw, nx.px-nx.pw,y2,nrw, s.rumble);
-    trap(s.px+s.pw-rw,y1,rw, nx.px+nx.pw-nrw,y2,nrw, s.rumble);
-    // Lane lines
-    if(s.lane){const lw=s.pw*0.02,nlw=nx.pw*0.02; trap(s.px-lw,y1,lw*2,nx.px-nlw,y2,nlw*2,'rgba(255,255,255,0.9)');}
+    const rw=s.pw*0.09,nrw=pw2*0.09;
+    trap(s.px-s.pw,py,rw, px2-pw2,maxY,nrw, s.rumble);
+    trap(s.px+s.pw-rw,py,rw, px2+pw2-nrw,maxY,nrw, s.rumble);
+    // Lane divider
+    if(s.lane){const lw=s.pw*0.018,nlw=pw2*0.018;trap(s.px-lw,py,lw*2,px2-nlw,maxY,nlw*2,'rgba(255,255,255,0.9)');}
     // Barriers
-    ctx.fillStyle='#aaa'; ctx.fillRect(s.px-s.pw-6,y1,5,y2-y1);
-    ctx.fillRect(s.px+s.pw+1,y1,5,y2-y1);
-    ctx.fillStyle=s.rumble; ctx.fillRect(s.px-s.pw-6,y1,5,(y2-y1)*0.4);
-    ctx.fillRect(s.px+s.pw+1,y1,5,(y2-y1)*0.4);
-    maxY=y1;
+    ctx.fillStyle='#999'; ctx.fillRect(s.px-s.pw-5,py,4,maxY-py);
+    ctx.fillRect(s.px+s.pw+1,py,4,maxY-py);
+    ctx.fillStyle=s.rumble; ctx.fillRect(s.px-s.pw-5,py,4,(maxY-py)*0.45);
+    ctx.fillRect(s.px+s.pw+1,py,4,(maxY-py)*0.45);
+    maxY=py;
+    if(maxY<=0) break;
   }
 }
 function trap(x1,y1,w1,x2,y2,w2,col){
@@ -326,72 +332,295 @@ function buildSprites(){
   });
 }
 function drawCar(c,ox,oy,w,h,pf,an){
-  c.save(); c.translate(ox+w/2,oy+h*0.55);
-  const sq=1-Math.abs(an-0.5)*0.32; c.scale(sq,1);
-  const bw=w*0.43, bh=h*0.28;
+  c.save(); c.translate(ox+w/2,oy+h*0.58);
+  const sq=1-Math.abs(an-0.5)*0.28; c.scale(sq,1);
+  const bw=w*0.46, bh=h*0.30;
+  const isFront=an<0.30||an>0.70, isRear=an>0.30&&an<0.70, isSide=an>0.22&&an<0.78;
+  const facing=an<0.5?1:-1;
 
-  // Shadow
-  c.fillStyle='rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(0,bh*0.5,bw*0.8,bh*0.22,0,0,Math.PI*2); c.fill();
+  // Ground shadow
+  c.fillStyle='rgba(0,0,0,0.35)';
+  c.beginPath(); c.ellipse(0,bh*0.62,bw*0.85,bh*0.18,0,0,Math.PI*2); c.fill();
 
-  // Body gradient
-  const bg=c.createLinearGradient(-bw,-bh,bw,bh*0.5);
-  bg.addColorStop(0,shiftHex(pf.bodyCol,60)); bg.addColorStop(0.5,pf.bodyCol); bg.addColorStop(1,shiftHex(pf.bodyCol,-40));
+  // ── BBS 5-spoke wheels ─────────────────────────────────────────────────
+  const wheels=[[-bw*0.72,bh*0.08],[bw*0.72,bh*0.08],[-bw*0.60,bh*0.48],[bw*0.60,bh*0.48]];
+  wheels.forEach(([wx,wy])=>{
+    const wr=bw*0.22, wry=bh*0.32;
+    // Tyre
+    const tg=c.createRadialGradient(wx-wr*0.2,wy-wry*0.2,wr*0.05,wx,wy,wr);
+    tg.addColorStop(0,'#333'); tg.addColorStop(1,'#0a0a0a');
+    c.fillStyle=tg; c.beginPath(); c.ellipse(wx,wy,wr,wry,0,0,Math.PI*2); c.fill();
+    // White tyre lettering
+    c.save(); c.beginPath(); c.ellipse(wx,wy,wr*0.88,wry*0.88,0,0,Math.PI*2); c.clip();
+    c.strokeStyle='rgba(255,255,255,0.07)'; c.lineWidth=1.5;
+    c.beginPath(); c.arc(wx,wy,wr*0.78,0,Math.PI*2); c.stroke(); c.restore();
+    // Red brake caliper behind rim
+    c.fillStyle='#cc0000';
+    c.beginPath(); c.ellipse(wx,wy,wr*0.62,wry*0.62,0,0,Math.PI*2); c.fill();
+    // BBS rim face (silver gradient)
+    const rg=c.createRadialGradient(wx-wr*0.1,wy-wry*0.1,wr*0.05,wx,wy,wr*0.6);
+    rg.addColorStop(0,'#e0e0e0'); rg.addColorStop(0.5,'#a8a8a8'); rg.addColorStop(1,'#606060');
+    c.fillStyle=rg; c.beginPath(); c.ellipse(wx,wy,wr*0.60,wry*0.60,0,0,Math.PI*2); c.fill();
+    // 5 spokes
+    for(let s=0;s<5;s++){
+      const ang=s/5*Math.PI*2 - Math.PI/2;
+      const sx0=wx+Math.cos(ang)*wr*0.10, sy0=wy+Math.sin(ang)*wry*0.10;
+      const sx1=wx+Math.cos(ang-0.18)*wr*0.55, sy1=wy+Math.sin(ang-0.18)*wry*0.55;
+      const sx2=wx+Math.cos(ang+0.18)*wr*0.55, sy2=wy+Math.sin(ang+0.18)*wry*0.55;
+      const sg2=c.createLinearGradient(sx0,sy0,sx1,sy1);
+      sg2.addColorStop(0,'#d8d8d8'); sg2.addColorStop(1,'#707070');
+      c.fillStyle=sg2; c.beginPath(); c.moveTo(sx0,sy0); c.lineTo(sx1,sy1); c.lineTo(sx2,sy2); c.closePath(); c.fill();
+      // spoke shadow
+      c.strokeStyle='rgba(0,0,0,0.4)'; c.lineWidth=0.5;
+      c.beginPath(); c.moveTo(sx0,sy0); c.lineTo(sx1,sy1); c.stroke();
+    }
+    // Hub cap with BMW roundel
+    c.fillStyle='#1a1a1a'; c.beginPath(); c.ellipse(wx,wy,wr*0.15,wry*0.15,0,0,Math.PI*2); c.fill();
+    // BMW 4-quadrant roundel
+    const qr=wr*0.10, qry=wry*0.10;
+    c.fillStyle='#0066cc'; c.beginPath(); c.moveTo(wx,wy-qry); c.arc(wx,wy,qr,-Math.PI/2,0); c.lineTo(wx,wy); c.closePath(); c.fill();
+    c.fillStyle='#ffffff'; c.beginPath(); c.moveTo(wx,wy-qry); c.arc(wx,wy,qr,-Math.PI/2,-Math.PI,true); c.lineTo(wx,wy); c.closePath(); c.fill();
+    c.fillStyle='#0066cc'; c.beginPath(); c.moveTo(wx,wy+qry); c.arc(wx,wy,qr,Math.PI/2,Math.PI); c.lineTo(wx,wy); c.closePath(); c.fill();
+    c.fillStyle='#ffffff'; c.beginPath(); c.moveTo(wx,wy); c.arc(wx,wy,qr,0,Math.PI/2); c.lineTo(wx,wy+qry); c.closePath(); c.fill();
+    // rim outer ring
+    c.strokeStyle='#888'; c.lineWidth=1.2;
+    c.beginPath(); c.ellipse(wx,wy,wr*0.60,wry*0.60,0,0,Math.PI*2); c.stroke();
+    // Lug nuts (5)
+    for(let s=0;s<5;s++){
+      const ang=s/5*Math.PI*2+Math.PI/10;
+      const lx=wx+Math.cos(ang)*wr*0.36, ly=wy+Math.sin(ang)*wry*0.36;
+      c.fillStyle='#aaa'; c.beginPath(); c.arc(lx,ly,wr*0.035,0,Math.PI*2); c.fill();
+    }
+  });
+
+  // ── WIDE-BODY E46 M3 GTR BODY ──────────────────────────────────────────
+  // Rear fender flare
+  c.fillStyle=shiftHex(pf.bodyCol,-15);
+  c.beginPath();
+  c.moveTo(-bw*0.55,bh*0.50); c.bezierCurveTo(-bw*0.85,bh*0.50,-bw*0.92,bh*0.05,-bw*0.88,-bh*0.02);
+  c.lineTo(-bw*0.75,-bh*0.02); c.bezierCurveTo(-bw*0.78,bh*0.05,-bw*0.72,bh*0.42,-bw*0.55,bh*0.42);
+  c.closePath(); c.fill();
+  // Front fender flare
+  c.beginPath();
+  c.moveTo(bw*0.55,bh*0.50); c.bezierCurveTo(bw*0.85,bh*0.50,bw*0.92,bh*0.05,bw*0.88,-bh*0.02);
+  c.lineTo(bw*0.75,-bh*0.02); c.bezierCurveTo(bw*0.78,bh*0.05,bw*0.72,bh*0.42,bw*0.55,bh*0.42);
+  c.closePath(); c.fill();
+
+  // Main body
+  const bg=c.createLinearGradient(-bw,-bh*1.1,bw*0.3,bh*0.6);
+  bg.addColorStop(0,shiftHex(pf.bodyCol,70));
+  bg.addColorStop(0.35,pf.bodyCol);
+  bg.addColorStop(0.7,shiftHex(pf.bodyCol,-25));
+  bg.addColorStop(1,shiftHex(pf.bodyCol,-55));
   c.fillStyle=bg;
   c.beginPath();
-  c.moveTo(-bw,bh*0.3); c.lineTo(-bw*0.95,bh*0.0); c.lineTo(-bw*0.68,-bh*0.78);
-  c.lineTo(-bw*0.08,-bh); c.lineTo(bw*0.08,-bh); c.lineTo(bw*0.68,-bh*0.78);
-  c.lineTo(bw*0.95,bh*0.0); c.lineTo(bw,bh*0.3); c.lineTo(bw*0.78,bh*0.52);
-  c.lineTo(-bw*0.78,bh*0.52); c.closePath(); c.fill();
+  // E46 silhouette: long hood, fastback roof, short trunk
+  c.moveTo(-bw*0.88,bh*0.44);                         // rear bottom-left
+  c.lineTo(-bw*0.88,-bh*0.02);                        // rear side
+  c.bezierCurveTo(-bw*0.88,-bh*0.20,-bw*0.70,-bh*0.82,-bw*0.48,-bh*0.92); // C-pillar
+  c.bezierCurveTo(-bw*0.32,-bh*1.02,-bw*0.22,-bh*1.08,0,-bh*1.08);        // roofline peak
+  c.bezierCurveTo(bw*0.22,-bh*1.08,bw*0.38,-bh*0.98,bw*0.52,-bh*0.84);   // A-pillar
+  c.bezierCurveTo(bw*0.68,-bh*0.68,bw*0.82,-bh*0.22,bw*0.88,-bh*0.02);   // hood slope
+  c.lineTo(bw*0.88,bh*0.44);                          // front bottom-right
+  c.bezierCurveTo(bw*0.72,bh*0.54,bw*0.55,bh*0.52,bw*0.40,bh*0.50);      // front bumper
+  c.lineTo(-bw*0.40,bh*0.50);                         // sill
+  c.bezierCurveTo(-bw*0.55,bh*0.52,-bw*0.72,bh*0.54,-bw*0.88,bh*0.44);   // rear bumper
+  c.closePath(); c.fill();
 
-  // Stripes
-  c.fillStyle='rgba(255,255,255,0.45)'; c.fillRect(-bw*0.14,-bh*1.02,bw*0.11,bh*2.0);
-  c.fillRect(bw*0.05,-bh*1.02,bw*0.07,bh*2.0);
+  // Body highlight crease line
+  c.strokeStyle='rgba(255,255,255,0.28)'; c.lineWidth=1.5;
+  c.beginPath(); c.moveTo(-bw*0.85,bh*0.10); c.bezierCurveTo(-bw*0.40,bh*0.06,bw*0.40,bh*0.06,bw*0.85,bh*0.10); c.stroke();
 
-  // Roof
-  c.fillStyle='rgba(5,5,15,0.95)';
-  c.beginPath(); c.moveTo(-bw*0.44,-bh*0.05); c.lineTo(-bw*0.37,-bh*0.88); c.lineTo(bw*0.37,-bh*0.88); c.lineTo(bw*0.44,-bh*0.05); c.closePath(); c.fill();
+  // Racing stripes (NFS Most Wanted livery)
+  c.save();
+  c.beginPath();
+  c.moveTo(-bw*0.88,bh*0.44); c.bezierCurveTo(-bw*0.88,-bh*0.20,-bw*0.70,-bh*0.82,-bw*0.48,-bh*0.92);
+  c.bezierCurveTo(-bw*0.32,-bh*1.02,-bw*0.22,-bh*1.08,0,-bh*1.08);
+  c.bezierCurveTo(bw*0.22,-bh*1.08,bw*0.38,-bh*0.98,bw*0.52,-bh*0.84);
+  c.bezierCurveTo(bw*0.68,-bh*0.68,bw*0.82,-bh*0.22,bw*0.88,-bh*0.02);
+  c.lineTo(bw*0.88,bh*0.44); c.lineTo(-bw*0.88,bh*0.44); c.closePath(); c.clip();
+  c.fillStyle='rgba(255,255,255,0.38)';
+  c.fillRect(-bw*0.12,-bh*1.2,bw*0.09,bh*2.5);
+  c.fillRect(bw*0.06,-bh*1.2,bw*0.055,bh*2.5);
+  c.restore();
 
-  // Windshield
-  const wg=c.createLinearGradient(-bw*0.3,-bh*0.82,bw*0.3,-bh*0.08);
-  wg.addColorStop(0,'rgba(60,140,255,0.65)'); wg.addColorStop(1,'rgba(20,60,180,0.25)');
+  // ── ROOF (carbon-look) ─────────────────────────────────────────────────
+  const roofG=c.createLinearGradient(-bw*0.36,-bh*1.05,bw*0.36,-bh*0.35);
+  roofG.addColorStop(0,'#1a1a1a'); roofG.addColorStop(0.5,'#2a2a2a'); roofG.addColorStop(1,'#0d0d0d');
+  c.fillStyle=roofG;
+  c.beginPath();
+  c.moveTo(-bw*0.48,-bh*0.90); c.bezierCurveTo(-bw*0.38,-bh*0.95,-bw*0.20,-bh*1.06,0,-bh*1.06);
+  c.bezierCurveTo(bw*0.20,-bh*1.06,bw*0.38,-bh*0.95,bw*0.48,-bh*0.90);
+  c.lineTo(bw*0.42,-bh*0.30); c.lineTo(-bw*0.42,-bh*0.30); c.closePath(); c.fill();
+  // Carbon weave hint
+  c.strokeStyle='rgba(255,255,255,0.06)'; c.lineWidth=0.8;
+  for(let ci=-5;ci<=5;ci++){
+    c.beginPath(); c.moveTo(ci*bw*0.09,-bh*1.06); c.lineTo(ci*bw*0.09,-bh*0.30); c.stroke();
+  }
+
+  // ── WINDSHIELD + REAR GLASS ────────────────────────────────────────────
+  const wg=c.createLinearGradient(-bw*0.32,-bh*0.90,bw*0.32,-bh*0.32);
+  wg.addColorStop(0,'rgba(80,160,255,0.70)'); wg.addColorStop(0.4,'rgba(40,100,220,0.45)'); wg.addColorStop(1,'rgba(10,40,140,0.20)');
   c.fillStyle=wg;
-  c.beginPath(); c.moveTo(-bw*0.35,-bh*0.1); c.lineTo(-bw*0.29,-bh*0.76); c.lineTo(bw*0.29,-bh*0.76); c.lineTo(bw*0.35,-bh*0.1); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(-bw*0.38,-bh*0.32); c.lineTo(-bw*0.44,-bh*0.88); c.lineTo(bw*0.44,-bh*0.88); c.lineTo(bw*0.38,-bh*0.32); c.closePath(); c.fill();
+  c.strokeStyle='rgba(255,255,255,0.25)'; c.lineWidth=1;
+  c.beginPath(); c.moveTo(-bw*0.38,-bh*0.32); c.lineTo(-bw*0.44,-bh*0.88); c.lineTo(bw*0.44,-bh*0.88); c.lineTo(bw*0.38,-bh*0.32); c.closePath(); c.stroke();
+  // Rear window
+  const rwg=c.createLinearGradient(-bw*0.26,-bh*0.88,-bw*0.20,-bh*0.32);
+  rwg.addColorStop(0,'rgba(20,60,180,0.55)'); rwg.addColorStop(1,'rgba(5,20,80,0.25)');
+  c.fillStyle=rwg;
+  c.beginPath(); c.moveTo(-bw*0.46,-bh*0.30); c.lineTo(-bw*0.52,-bh*0.86); c.lineTo(-bw*0.38,-bh*0.86); c.lineTo(-bw*0.32,-bh*0.30); c.closePath(); c.fill();
 
-  // Front grille (kidney)
-  if(an<0.38||an>0.62){
-    c.fillStyle=C.blue; c.beginPath(); roundR(c,-bw*0.18,bh*0.28,bw*0.14,bh*0.2,4); c.fill();
-    c.beginPath(); roundR(c,bw*0.04,bh*0.28,bw*0.14,bh*0.2,4); c.fill();
-    c.fillStyle='#ffffe0'; c.shadowBlur=10; c.shadowColor='#ffffc0';
-    c.beginPath(); roundR(c,-bw*0.4,bh*0.04,bw*0.17,bh*0.16,3); c.fill();
-    c.beginPath(); roundR(c,bw*0.23,bh*0.04,bw*0.17,bh*0.16,3); c.fill();
-    c.shadowBlur=0;
+  // ── SIDE WINDOW ────────────────────────────────────────────────────────
+  if(isSide){
+    c.fillStyle='rgba(20,50,160,0.45)';
+    c.beginPath(); c.moveTo(-bw*0.30,-bh*0.30); c.lineTo(-bw*0.36,-bh*0.84); c.lineTo(-bw*0.46,-bh*0.82); c.lineTo(-bw*0.50,-bh*0.28); c.closePath(); c.fill();
+    c.strokeStyle='rgba(255,255,255,0.15)'; c.lineWidth=0.8; c.stroke();
   }
-  // Rear lights
-  if(an>0.38&&an<0.72){
-    c.fillStyle='#ff2200'; c.shadowBlur=8; c.shadowColor='#ff4400';
-    c.beginPath(); roundR(c,-bw*0.42,bh*0.02,bw*0.19,bh*0.14,3); c.fill();
-    c.beginPath(); roundR(c,bw*0.23,bh*0.02,bw*0.19,bh*0.14,3); c.fill();
-    c.shadowBlur=0;
+
+  // ── DOOR PANEL LINE ────────────────────────────────────────────────────
+  c.strokeStyle='rgba(0,0,0,0.4)'; c.lineWidth=1.2;
+  c.beginPath(); c.moveTo(-bw*0.48,bh*0.10); c.bezierCurveTo(-bw*0.20,bh*0.06,bw*0.00,bh*0.06,bw*0.10,bh*0.10); c.stroke();
+
+  // ── CARBON SIDE SKIRT ──────────────────────────────────────────────────
+  const sk=c.createLinearGradient(0,bh*0.38,0,bh*0.52);
+  sk.addColorStop(0,'#1e1e1e'); sk.addColorStop(1,'#050505');
+  c.fillStyle=sk;
+  c.beginPath(); roundR(c,-bw*0.82,bh*0.38,bw*1.64,bh*0.16,3); c.fill();
+  c.strokeStyle='rgba(180,0,0,0.8)'; c.lineWidth=1.2;
+  c.beginPath(); c.moveTo(-bw*0.82,bh*0.41); c.lineTo(bw*0.82,bh*0.41); c.stroke();
+
+  // ── CARBON FRONT SPLITTER ──────────────────────────────────────────────
+  c.fillStyle='#0a0a0a';
+  c.beginPath(); roundR(c,-bw*0.90,bh*0.44,bw*0.88,bh*0.10,2); c.fill();
+  c.fillStyle='rgba(255,255,255,0.06)';
+  for(let fi=0;fi<4;fi++) c.fillRect(-bw*0.88+fi*bw*0.22,bh*0.45,bw*0.16,bh*0.06);
+
+  // ── BMW KIDNEY GRILLE (front-facing) ──────────────────────────────────
+  if(isFront){
+    // Grille surround chrome
+    c.strokeStyle='#aaaaaa'; c.lineWidth=2;
+    c.fillStyle='#0033aa';
+    // Left kidney
+    c.beginPath();
+    c.moveTo(bw*0.04,bh*0.18); c.bezierCurveTo(bw*0.04,bh*0.04,bw*0.22,bh*0.02,bw*0.26,bh*0.12);
+    c.bezierCurveTo(bw*0.30,bh*0.22,bw*0.26,bh*0.36,bw*0.18,bh*0.38);
+    c.bezierCurveTo(bw*0.10,bh*0.40,bw*0.04,bh*0.32,bw*0.04,bh*0.18); c.fill(); c.stroke();
+    // Grille mesh lines left
+    c.strokeStyle='rgba(150,200,255,0.5)'; c.lineWidth=0.7;
+    for(let gi=0;gi<4;gi++){ c.beginPath(); c.moveTo(bw*0.04+gi*bw*0.06,bh*0.10); c.lineTo(bw*0.04+gi*bw*0.06,bh*0.36); c.stroke(); }
+    // Right kidney
+    c.strokeStyle='#aaaaaa'; c.lineWidth=2; c.fillStyle='#0033aa';
+    c.beginPath();
+    c.moveTo(-bw*0.04,bh*0.18); c.bezierCurveTo(-bw*0.04,bh*0.04,-bw*0.22,bh*0.02,-bw*0.26,bh*0.12);
+    c.bezierCurveTo(-bw*0.30,bh*0.22,-bw*0.26,bh*0.36,-bw*0.18,bh*0.38);
+    c.bezierCurveTo(-bw*0.10,bh*0.40,-bw*0.04,bh*0.32,-bw*0.04,bh*0.18); c.fill(); c.stroke();
+    c.strokeStyle='rgba(150,200,255,0.5)'; c.lineWidth=0.7;
+    for(let gi=0;gi<4;gi++){ c.beginPath(); c.moveTo(-bw*0.04-gi*bw*0.06,bh*0.10); c.lineTo(-bw*0.04-gi*bw*0.06,bh*0.36); c.stroke(); }
+    // Front bumper lower vent
+    c.fillStyle='#080808'; c.strokeStyle='#444'; c.lineWidth=1;
+    c.beginPath(); roundR(c,-bw*0.80,bh*0.30,bw*0.65,bh*0.12,3); c.fill(); c.stroke();
+    c.beginPath(); roundR(c,bw*0.15,bh*0.30,bw*0.65,bh*0.12,3); c.fill(); c.stroke();
   }
-  // Rear wing
-  if(an>0.18&&an<0.88){
-    c.fillStyle=shiftHex(pf.bodyCol,-20);
-    c.fillRect(-bw*0.27,-bh*1.08,bw*0.06,bh*0.35); c.fillRect(bw*0.21,-bh*1.08,bw*0.06,bh*0.35);
-    c.fillStyle=pf.col; c.beginPath(); roundR(c,-bw*0.46,-bh*1.14,bw*0.92,bh*0.15,4); c.fill();
+
+  // ── ANGEL EYE HEADLIGHTS (front) ──────────────────────────────────────
+  if(isFront){
+    [[-bw*0.52,bh*0.03],[bw*0.52,bh*0.03]].forEach(([hx,hy])=>{
+      // Dark projector housing
+      c.fillStyle='#111'; c.beginPath(); c.ellipse(hx,hy,bw*0.18,bh*0.14,0,0,Math.PI*2); c.fill();
+      // Angel eye ring (white halo)
+      c.strokeStyle='rgba(255,255,240,0.95)'; c.lineWidth=2.5; c.shadowBlur=8; c.shadowColor='#ffffcc';
+      c.beginPath(); c.ellipse(hx,hy,bw*0.13,bh*0.10,0,0,Math.PI*2); c.stroke(); c.shadowBlur=0;
+      // Inner projector lens
+      const lg=c.createRadialGradient(hx-bw*0.02,hy-bh*0.02,bw*0.01,hx,hy,bw*0.07);
+      lg.addColorStop(0,'rgba(200,230,255,0.9)'); lg.addColorStop(0.6,'rgba(80,140,255,0.6)'); lg.addColorStop(1,'rgba(20,40,180,0.2)');
+      c.fillStyle=lg; c.beginPath(); c.ellipse(hx,hy,bw*0.09,bh*0.07,0,0,Math.PI*2); c.fill();
+      // DRL strip
+      c.strokeStyle='rgba(255,255,200,0.80)'; c.lineWidth=1.5; c.shadowBlur=6; c.shadowColor='#ffffaa';
+      c.beginPath(); c.moveTo(hx-bw*0.16,hy+bh*0.08); c.lineTo(hx+bw*0.16,hy+bh*0.08); c.stroke(); c.shadowBlur=0;
+    });
   }
-  // Wheels
-  [[-bw*0.77,-bh*0.05],[bw*0.77,-bh*0.05],[-bw*0.64,bh*0.44],[bw*0.64,bh*0.44]].forEach(([wx,wy])=>{
-    c.fillStyle='#111'; c.beginPath(); c.ellipse(wx,wy,bw*0.23,bh*0.34,0,0,Math.PI*2); c.fill();
-    c.fillStyle='#2a2a2a'; c.beginPath(); c.ellipse(wx,wy,bw*0.13,bh*0.2,0,0,Math.PI*2); c.fill();
-    c.fillStyle='#777'; c.beginPath(); c.arc(wx,wy,bw*0.055,0,Math.PI*2); c.fill();
-  });
-  // Splitter
-  c.fillStyle='#090909'; c.beginPath(); roundR(c,-bw*0.88,bh*0.44,bw*1.76,bh*0.1,2); c.fill();
-  // TOMAHAWK glow
+
+  // ── TAIL LIGHTS (rear) ────────────────────────────────────────────────
+  if(isRear){
+    [[-bw*0.60,bh*0.04],[bw*0.60,bh*0.04]].forEach(([tx,ty])=>{
+      c.fillStyle='#330000'; c.beginPath(); c.ellipse(tx,ty,bw*0.20,bh*0.13,0,0,Math.PI*2); c.fill();
+      c.fillStyle='#ff1100'; c.shadowBlur=12; c.shadowColor='#ff4400';
+      c.beginPath(); c.ellipse(tx,ty,bw*0.16,bh*0.09,0,0,Math.PI*2); c.fill(); c.shadowBlur=0;
+      // inner bright spot
+      c.fillStyle='rgba(255,180,160,0.7)'; c.beginPath(); c.arc(tx,ty,bw*0.06,0,Math.PI*2); c.fill();
+    });
+    // Rear diffuser fins
+    c.fillStyle='#0d0d0d';
+    c.beginPath(); roundR(c,-bw*0.82,bh*0.40,bw*1.64,bh*0.14,3); c.fill();
+    for(let fi=0;fi<7;fi++){
+      c.strokeStyle='#333'; c.lineWidth=0.8;
+      c.beginPath(); c.moveTo(-bw*0.78+fi*bw*0.22,bh*0.40); c.lineTo(-bw*0.78+fi*bw*0.22,bh*0.54); c.stroke();
+    }
+    // Dual exhaust tips
+    [[-bw*0.40,bh*0.50],[bw*0.40,bh*0.50]].forEach(([ex,ey])=>{
+      const eg=c.createRadialGradient(ex,ey,1,ex,ey,bw*0.07);
+      eg.addColorStop(0,'#555'); eg.addColorStop(1,'#111');
+      c.fillStyle=eg; c.strokeStyle='#666'; c.lineWidth=1.2;
+      c.beginPath(); c.ellipse(ex,ey,bw*0.07,bh*0.05,0,0,Math.PI*2); c.fill(); c.stroke();
+      c.fillStyle='rgba(0,0,0,0.8)'; c.beginPath(); c.ellipse(ex,ey,bw*0.05,bh*0.035,0,0,Math.PI*2); c.fill();
+    });
+  }
+
+  // ── GT WING WITH SWAN-NECK STRUTS ─────────────────────────────────────
+  if(isRear||isSide){
+    const wy=-bh*0.98;
+    // Swan-neck struts (carbon)
+    c.strokeStyle='#1a1a1a'; c.lineWidth=3;
+    [[-bw*0.30],[bw*0.30]].forEach(([sx])=>{
+      c.beginPath(); c.moveTo(sx,bh*0.00); c.bezierCurveTo(sx,wy*0.3,sx*0.8,wy*0.7,sx*0.6,wy); c.stroke();
+    });
+    // Wing aerofoil blade
+    const wingG=c.createLinearGradient(-bw*0.60,wy-bh*0.10,-bw*0.60,wy+bh*0.08);
+    wingG.addColorStop(0,'#1e1e1e'); wingG.addColorStop(0.4,pf.col); wingG.addColorStop(1,'#0a0a0a');
+    c.fillStyle=wingG;
+    c.beginPath();
+    c.moveTo(-bw*0.64,wy); c.bezierCurveTo(-bw*0.60,wy-bh*0.12,bw*0.60,wy-bh*0.12,bw*0.64,wy);
+    c.bezierCurveTo(bw*0.60,wy+bh*0.06,-bw*0.60,wy+bh*0.06,-bw*0.64,wy); c.closePath(); c.fill();
+    // Gurney flap
+    c.fillStyle='#111'; c.fillRect(bw*0.58,wy-bh*0.12,bw*0.06,bh*0.14);
+    // Endplates
+    c.fillStyle='#181818';
+    [[-bw*0.64],[bw*0.64]].forEach(([ex])=>{
+      c.beginPath(); c.moveTo(ex,wy-bh*0.14); c.lineTo(ex+facing*bw*0.06,wy-bh*0.14);
+      c.lineTo(ex+facing*bw*0.06,wy+bh*0.08); c.lineTo(ex,wy+bh*0.08); c.closePath(); c.fill();
+    });
+  }
+
+  // ── HOOD POWER BULGE + NACA DUCT ─────────────────────────────────────
+  if(isFront){
+    const hg=c.createLinearGradient(0,-bh*0.60,0,-bh*0.20);
+    hg.addColorStop(0,shiftHex(pf.bodyCol,30)); hg.addColorStop(1,pf.bodyCol);
+    c.fillStyle=hg;
+    c.beginPath(); c.moveTo(-bw*0.12,-bh*0.22); c.bezierCurveTo(-bw*0.14,-bh*0.50,bw*0.14,-bh*0.50,bw*0.12,-bh*0.22);
+    c.bezierCurveTo(bw*0.08,-bh*0.18,-bw*0.08,-bh*0.18,-bw*0.12,-bh*0.22); c.closePath(); c.fill();
+    // NACA duct slot
+    c.fillStyle='rgba(0,0,0,0.65)';
+    c.beginPath(); c.moveTo(-bw*0.07,-bh*0.44); c.lineTo(-bw*0.05,-bh*0.28); c.lineTo(bw*0.05,-bh*0.28); c.lineTo(bw*0.07,-bh*0.44); c.closePath(); c.fill();
+  }
+
+  // ── SIDE MIRROR ────────────────────────────────────────────────────────
+  if(isSide){
+    c.fillStyle='#1a1a1a';
+    c.beginPath(); roundR(c,bw*0.34,-bh*0.32,bw*0.16,bh*0.08,2); c.fill();
+    c.fillStyle='rgba(80,140,255,0.55)';
+    c.beginPath(); roundR(c,bw*0.355,-bh*0.305,bw*0.12,bh*0.055,2); c.fill();
+  }
+
+  // ── TOMAHAWK PLASMA AURA ──────────────────────────────────────────────
   if(pf.label.startsWith('TOMAHAWK')){
-    c.shadowBlur=22; c.shadowColor=pf.col; c.strokeStyle=pf.col; c.lineWidth=2;
-    c.beginPath(); c.ellipse(0,0,bw*0.88,bh*0.68,0,0,Math.PI*2); c.stroke(); c.shadowBlur=0;
+    const tg2=c.createRadialGradient(0,0,bw*0.3,0,0,bw*1.1);
+    tg2.addColorStop(0,pf.col+'99'); tg2.addColorStop(0.5,pf.col+'44'); tg2.addColorStop(1,'transparent');
+    c.fillStyle=tg2; c.beginPath(); c.ellipse(0,0,bw*1.1,bh*0.85,0,0,Math.PI*2); c.fill();
+    c.shadowBlur=30; c.shadowColor=pf.col; c.strokeStyle=pf.col; c.lineWidth=2.5;
+    c.beginPath(); c.ellipse(0,-bh*0.20,bw*0.90,bh*0.72,0,0,Math.PI*2); c.stroke(); c.shadowBlur=0;
   }
+
   c.restore();
 }
 function roundR(c,x,y,w,h,r){ if(c.roundRect){c.roundRect(x,y,w,h,r);}else{c.rect(x,y,w,h);} }
